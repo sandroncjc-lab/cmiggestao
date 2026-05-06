@@ -4,6 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
+## IMPORTANT: Always Consult /docs First
+
+**Before writing any code**, Claude Code MUST check the `/docs` directory for relevant documentation files. The `/docs` directory contains project-specific guides, decisions, and conventions that take precedence over general knowledge.
+
+Steps:
+1. Identify the feature or module being implemented.
+2. Look for a matching doc in `/docs/` (e.g., `docs/auth.md`, `docs/dashboard.md`).
+3. Read and follow the relevant doc before generating any code.
+4. If no relevant doc exists, proceed with general best practices — but consider whether a doc should be created.
+
 ## Commands
 
 ```bash
