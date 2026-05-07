@@ -15,6 +15,8 @@ Steps:
 4. If no relevant doc exists, proceed with general best practices — but consider whether a doc should be created.:
 - /docs/ui.md
 - /docs/data-fetching.md
+- /docs/auth.md
+- /docs/data-mutations.md
 
 ## Commands
 
