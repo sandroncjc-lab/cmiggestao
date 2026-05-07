@@ -5,16 +5,19 @@ import { UserButton } from '@clerk/nextjs'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
+function readTheme() {
+  if (typeof window === 'undefined') return false
+  const stored = document.cookie.match(/theme=([^;]+)/)?.[1]
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  return stored ? stored === 'dark' : prefersDark
+}
+
 export function Header({ title }: { title?: string }) {
-  const [dark, setDark] = useState(false)
+  const [dark, setDark] = useState(readTheme)
 
   useEffect(() => {
-    const stored = document.cookie.match(/theme=([^;]+)/)?.[1]
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const isDark = stored ? stored === 'dark' : prefersDark
-    setDark(isDark)
-    document.documentElement.classList.toggle('dark', isDark)
-  }, [])
+    document.documentElement.classList.toggle('dark', dark)
+  }, [dark])
 
   function toggleTheme() {
     const next = !dark

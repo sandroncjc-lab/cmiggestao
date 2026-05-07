@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
-const statusConfig: Record<string, { label: string; variant: string }> = {
+const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   disponivel: { label: 'Disponível', variant: 'success' },
   em_uso: { label: 'Em Uso', variant: 'info' },
   manutencao: { label: 'Manutenção', variant: 'warning' },
@@ -68,7 +69,7 @@ export default async function EquipamentosPage() {
                     <TableCell className="font-medium">{e.nome}</TableCell>
                     <TableCell>{e.tipo ?? '—'}</TableCell>
                     <TableCell className="font-mono text-xs">{e.numeroSerie ?? '—'}</TableCell>
-                    <TableCell><Badge variant={cfg.variant as any}>{cfg.label}</Badge></TableCell>
+                    <TableCell><Badge variant={cfg.variant}>{cfg.label}</Badge></TableCell>
                     <TableCell>{e.obraNome ?? '—'}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>

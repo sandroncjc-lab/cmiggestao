@@ -9,6 +9,7 @@ import {
   boolean,
   time,
   date,
+  integer,
 } from 'drizzle-orm/pg-core'
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -310,19 +311,69 @@ export const equipamentoMovimentacoes = pgTable('equipamento_movimentacoes', {
 
 // ─── EPIs ─────────────────────────────────────────────────────────────────────
 
-export const statusEpiEnum = pgEnum('status_epi', ['ativo', 'vencido'])
+export const tipoMovimentacaoEpiEnum = pgEnum('tipo_movimentacao_epi', [
+  'ENTRADA',
+  'SAIDA_OBRA',
+  'AJUSTE',
+  'DESCARTE',
+])
 
 export const epis = pgTable('epis', {
   id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  empresaId: uuid('empresa_id')
+    .notNull()
+    .references(() => empresas.id),
   tipo: varchar('tipo', { length: 255 }).notNull(),
-  numeroCa: varchar('numero_ca', { length: 50 }),
-  validade: date('validade').notNull(),
-  funcionarioNome: varchar('funcionario_nome', { length: 255 }).notNull(),
-  dataEntrega: date('data_entrega').notNull(),
-  status: statusEpiEnum('status').notNull().default('ativo'),
-  obraId: uuid('obra_id').references(() => obras.id),
+  ca: varchar('ca', { length: 50 }),
+  descricao: text('descricao'),
+  periodicidadeTrocaDias: integer('periodicidade_troca_dias'),
+  quantidadeEstoque: integer('quantidade_estoque').notNull().default(0),
+  estoqueMinimo: integer('estoque_minimo').notNull().default(0),
+  fotoUrl: text('foto_url'),
+  ativo: boolean('ativo').notNull().default(true),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
+})
+
+export const epiDistribuicoes = pgTable('epi_distribuicoes', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  empresaId: uuid('empresa_id')
+    .notNull()
+    .references(() => empresas.id),
+  epiId: uuid('epi_id')
+    .notNull()
+    .references(() => epis.id),
+  obraId: uuid('obra_id')
+    .notNull()
+    .references(() => obras.id),
+  encarregadoId: uuid('encarregado_id')
+    .notNull()
+    .references(() => usuarios.id),
+  quantidade: integer('quantidade').notNull(),
+  dataDistribuicao: date('data_distribuicao').notNull(),
+  assinaturaEncarregadoBase64: text('assinatura_encarregado_base64'),
+  observacoes: text('observacoes'),
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
+})
+
+export const epiMovimentacoes = pgTable('epi_movimentacoes', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  empresaId: uuid('empresa_id')
+    .notNull()
+    .references(() => empresas.id),
+  epiId: uuid('epi_id')
+    .notNull()
+    .references(() => epis.id),
+  tipo: tipoMovimentacaoEpiEnum('tipo').notNull(),
+  quantidade: integer('quantidade').notNull(),
+  dataMovimentacao: date('data_movimentacao').notNull(),
+  notaFiscal: text('nota_fiscal'),
+  distribuicaoId: uuid('distribuicao_id').references(() => epiDistribuicoes.id),
+  usuarioResponsavelId: uuid('usuario_responsavel_id')
+    .notNull()
+    .references(() => usuarios.id),
+  observacoes: text('observacoes'),
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
 })
 
 // ─── Endereços de Obras (normalização) ───────────────────────────────────────

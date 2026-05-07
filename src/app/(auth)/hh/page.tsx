@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Timer, AlertTriangle } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
 export default async function HhPage() {
   const obrasList = await db
@@ -70,7 +71,7 @@ export default async function HhPage() {
           const contratado = Number(o.totalHH ?? 0)
           const consumido = consumoMap[o.id] ?? 0
           const pct = contratado > 0 ? Math.round((consumido / contratado) * 100) : 0
-          const alerta = pct >= 100 ? 'destructive' : pct >= 80 ? 'warning' : 'success'
+          const alerta: BadgeVariant = pct >= 100 ? 'destructive' : pct >= 80 ? 'warning' : 'success'
 
           return (
             <Card key={o.id}>
@@ -87,7 +88,7 @@ export default async function HhPage() {
                 </div>
                 <Progress value={pct} />
                 <div className="flex items-center justify-between">
-                  <Badge variant={alerta as any}>{pct}% utilizado</Badge>
+                  <Badge variant={alerta}>{pct}% utilizado</Badge>
                   <span className="text-xs text-muted-foreground">Saldo: {Math.max(0, contratado - consumido)}h</span>
                 </div>
               </CardContent>

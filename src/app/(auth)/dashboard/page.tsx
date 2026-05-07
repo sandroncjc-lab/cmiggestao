@@ -1,47 +1,30 @@
-import { db } from '@/app/db'
-import { obras, contratos, rdo, epis, equipamentos, hhContratos, hhRegistros } from '@/app/db/schema'
-import { eq, and, sql, gte } from 'drizzle-orm'
+import { getDashboardStats } from '@/data/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { HardHat, FileText, ClipboardList, ShieldCheck, Timer, Wrench } from 'lucide-react'
 
-async function getDashboardStats() {
-  const [
-    obrasAtivas,
-    contratosAtivos,
-    rdosPendentes,
-    episVencidos,
-    equipamentosEmUso,
-    totalHHContratado,
-    totalHHConsumido,
-  ] = await Promise.all([
-    db.select({ count: sql<number>`count(*)` }).from(obras).where(eq(obras.status, 'em_andamento')),
-    db.select({ count: sql<number>`count(*)` }).from(contratos).where(eq(contratos.status, 'ativo')),
-    db.select({ count: sql<number>`count(*)` }).from(rdo).where(eq(rdo.status, 'pendente_aprovacao')),
-    db.select({ count: sql<number>`count(*)` }).from(epis).where(eq(epis.status, 'vencido')),
-    db.select({ count: sql<number>`count(*)` }).from(equipamentos).where(eq(equipamentos.status, 'em_uso')),
-    db.select({ total: sql<number>`coalesce(sum(total_hh), 0)` }).from(hhContratos),
-    db.select({ total: sql<number>`coalesce(sum(horas_normais + horas_extras), 0)` }).from(hhRegistros),
-  ])
-
-  const hhContratado = Number(totalHHContratado[0]?.total ?? 0)
-  const hhConsumido = Number(totalHHConsumido[0]?.total ?? 0)
-  const hhPct = hhContratado > 0 ? Math.round((hhConsumido / hhContratado) * 100) : 0
-
-  return {
-    obrasAtivas: Number(obrasAtivas[0]?.count ?? 0),
-    contratosAtivos: Number(contratosAtivos[0]?.count ?? 0),
-    rdosPendentes: Number(rdosPendentes[0]?.count ?? 0),
-    episVencidos: Number(episVencidos[0]?.count ?? 0),
-    equipamentosEmUso: Number(equipamentosEmUso[0]?.count ?? 0),
-    hhContratado,
-    hhConsumido,
-    hhPct,
-  }
-}
-
 export default async function DashboardPage() {
   const stats = await getDashboardStats()
+
+  if (!stats) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+        </div>
+        <Card className="border-yellow-300 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
+          <CardContent className="py-6">
+            <p className="font-medium text-yellow-800 dark:text-yellow-200">
+              Conta não vinculada
+            </p>
+            <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+              Seu login não está associado a nenhum usuário cadastrado no sistema. Peça ao administrador para criar seu acesso.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const cards = [
     {
@@ -69,7 +52,7 @@ export default async function DashboardPage() {
       title: 'Alertas de EPIs',
       value: stats.episVencidos,
       icon: ShieldCheck,
-      description: 'EPIs vencidos',
+      description: 'abaixo do estoque mínimo',
       color: stats.episVencidos > 0 ? 'text-red-600' : 'text-muted-foreground',
     },
     {
@@ -91,8 +74,10 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">Visão geral das operações</p>
+        <h2 className="text-2xl font-bold tracking-tight">
+          Olá, {stats.usuario.nome.split(' ')[0]}
+        </h2>
+        <p className="text-muted-foreground">Visão geral das operações da sua empresa</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -132,10 +117,10 @@ export default async function DashboardPage() {
             <ShieldCheck className="h-5 w-5 text-red-600" />
             <div>
               <p className="font-medium text-red-800 dark:text-red-200">
-                {stats.episVencidos} EPI{stats.episVencidos > 1 ? 's' : ''} vencido{stats.episVencidos > 1 ? 's' : ''}
+                {stats.episVencidos} EPI{stats.episVencidos > 1 ? 's' : ''} abaixo do estoque mínimo
               </p>
               <p className="text-sm text-red-700 dark:text-red-300">
-                Verifique o módulo de EPIs para regularizar
+                Verifique o módulo de EPIs e registre uma entrada de estoque
               </p>
             </div>
           </CardContent>

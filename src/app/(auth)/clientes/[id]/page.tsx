@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ArrowLeft, Pencil } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
-const statusObraLabel: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'secondary' | 'destructive' }> = {
+const statusObraLabel: Record<string, { label: string; variant: BadgeVariant }> = {
   planejada: { label: 'Planejada', variant: 'secondary' },
-  em_andamento: { label: 'Em Andamento', variant: 'info' as any },
+  em_andamento: { label: 'Em Andamento', variant: 'info' },
   pausada: { label: 'Pausada', variant: 'warning' },
   concluida: { label: 'Concluída', variant: 'success' },
 }
@@ -84,7 +85,7 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
                     return (
                       <li key={o.id} className="flex items-center justify-between p-4">
                         <Link href={`/obras/${o.id}`} className="font-medium hover:underline">{o.nome}</Link>
-                        <Badge variant={s.variant as any}>{s.label}</Badge>
+                        <Badge variant={s.variant}>{s.label}</Badge>
                       </li>
                     )
                   })}

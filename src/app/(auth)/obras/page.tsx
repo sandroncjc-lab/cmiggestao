@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus, Search } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
 interface Props {
   searchParams: Promise<{ q?: string; status?: string; page?: string }>
@@ -15,7 +16,7 @@ interface Props {
 
 const PER_PAGE = 20
 
-const statusConfig: Record<string, { label: string; variant: string; color: string }> = {
+const statusConfig: Record<string, { label: string; variant: BadgeVariant; color: string }> = {
   planejada: { label: 'Planejada', variant: 'secondary', color: 'bg-gray-400' },
   em_andamento: { label: 'Em Andamento', variant: 'info', color: 'bg-blue-500' },
   pausada: { label: 'Pausada', variant: 'warning', color: 'bg-yellow-500' },
@@ -114,7 +115,7 @@ export default async function ObrasPage({ searchParams }: Props) {
                     </TableCell>
                     <TableCell>{o.clienteNome ?? '—'}</TableCell>
                     <TableCell>
-                      <Badge variant={cfg.variant as any}>{cfg.label}</Badge>
+                      <Badge variant={cfg.variant}>{cfg.label}</Badge>
                     </TableCell>
                     <TableCell>{o.dataInicio ?? '—'}</TableCell>
                     <TableCell>{o.dataFim ?? '—'}</TableCell>

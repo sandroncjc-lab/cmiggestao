@@ -8,8 +8,9 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
-const statusConfig: Record<string, { label: string; variant: string }> = {
+const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   rascunho: { label: 'Rascunho', variant: 'secondary' },
   ativo: { label: 'Ativo', variant: 'success' },
   suspenso: { label: 'Suspenso', variant: 'warning' },
@@ -87,7 +88,7 @@ export default async function ContratosPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={cfg.variant as any}>{cfg.label}</Badge>
+                      <Badge variant={cfg.variant}>{cfg.label}</Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {c.dataInicio} → {c.dataFim ?? '—'}

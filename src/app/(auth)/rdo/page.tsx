@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
-const statusConfig: Record<string, { label: string; variant: string }> = {
+const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   rascunho: { label: 'Rascunho', variant: 'secondary' },
   pendente_aprovacao: { label: 'Pendente', variant: 'warning' },
   aprovado: { label: 'Aprovado', variant: 'success' },
@@ -80,7 +81,7 @@ export default async function RdoPage() {
                     <TableCell>{r.obraNome ?? '—'}</TableCell>
                     <TableCell>{climaLabel[r.clima] ?? r.clima}</TableCell>
                     <TableCell>
-                      <Badge variant={cfg.variant as any}>{cfg.label}</Badge>
+                      <Badge variant={cfg.variant}>{cfg.label}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>

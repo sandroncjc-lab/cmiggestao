@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus, FileText, ExternalLink } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
-const tipoConfig: Record<string, { label: string; variant: string }> = {
+const tipoConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   contrato: { label: 'Contrato', variant: 'default' },
   alvara: { label: 'Alvará', variant: 'info' },
   planta: { label: 'Planta', variant: 'secondary' },
@@ -75,7 +76,7 @@ export default async function DocumentosPage() {
                         {d.titulo}
                       </div>
                     </TableCell>
-                    <TableCell><Badge variant={cfg.variant as any}>{cfg.label}</Badge></TableCell>
+                    <TableCell><Badge variant={cfg.variant}>{cfg.label}</Badge></TableCell>
                     <TableCell>{d.obraNome ?? '—'}</TableCell>
                     <TableCell>{d.clienteNome ?? '—'}</TableCell>
                     <TableCell>{d.criadoEm.toLocaleDateString('pt-BR')}</TableCell>

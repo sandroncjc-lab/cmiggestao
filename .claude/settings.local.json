@@ -7,7 +7,11 @@
       "mcp__neon__get_database_tables",
       "mcp__neon__run_sql_transaction",
       "Bash(git config *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(node -e \"require\\('react-signature-canvas'\\)\")",
+      "Bash(node -e \"require\\('date-fns'\\)\")",
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Deleted .next\")"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -7,17 +7,18 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, MapPin, User, Calendar } from 'lucide-react'
+import { ArrowLeft, MapPin, Calendar } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 import { Tabs as TabsComponent, TabsContent as TabsContentComponent, TabsList as TabsListComponent, TabsTrigger as TabsTriggerComponent } from '@/components/ui/tabs'
 
-const statusConfig: Record<string, { label: string; variant: string }> = {
+const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   planejada: { label: 'Planejada', variant: 'secondary' },
   em_andamento: { label: 'Em Andamento', variant: 'info' },
   pausada: { label: 'Pausada', variant: 'warning' },
   concluida: { label: 'Concluída', variant: 'success' },
 }
 
-const statusServicoConfig: Record<string, { label: string; variant: string }> = {
+const statusServicoConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   pendente: { label: 'Pendente', variant: 'secondary' },
   em_andamento: { label: 'Em Andamento', variant: 'info' },
   concluido: { label: 'Concluído', variant: 'success' },
@@ -67,7 +68,7 @@ export default async function ObraDetailPage({ params }: { params: Promise<{ id:
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold">{obra.nome}</h2>
-              <Badge variant={cfg.variant as any}>{cfg.label}</Badge>
+              <Badge variant={cfg.variant}>{cfg.label}</Badge>
             </div>
             <p className="text-muted-foreground">{obra.clienteNome}</p>
           </div>
@@ -157,7 +158,7 @@ export default async function ObraDetailPage({ params }: { params: Promise<{ id:
                           <td className="p-4 text-muted-foreground">{s.unidade}</td>
                           <td className="p-4 text-right">R$ {Number(s.precoUnitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                           <td className="p-4 text-center">
-                            <Badge variant={sc.variant as any}>{sc.label}</Badge>
+                            <Badge variant={sc.variant}>{sc.label}</Badge>
                           </td>
                         </tr>
                       )

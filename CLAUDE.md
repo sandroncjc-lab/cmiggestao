@@ -12,7 +12,9 @@ Steps:
 1. Identify the feature or module being implemented.
 2. Look for a matching doc in `/docs/` (e.g., `docs/auth.md`, `docs/dashboard.md`).
 3. Read and follow the relevant doc before generating any code.
-4. If no relevant doc exists, proceed with general best practices — but consider whether a doc should be created.
+4. If no relevant doc exists, proceed with general best practices — but consider whether a doc should be created.:
+- /docs/ui.md
+- /docs/data-fetching.md
 
 ## Commands
 

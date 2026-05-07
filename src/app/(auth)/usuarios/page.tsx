@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
+import { type BadgeVariant } from '@/components/ui/badge'
 
-const funcaoConfig: Record<string, { label: string; variant: string }> = {
+const funcaoConfig: Record<string, { label: string; variant: BadgeVariant }> = {
   admin: { label: 'Admin', variant: 'default' },
   engenheiro: { label: 'Engenheiro', variant: 'info' },
   encarregado: { label: 'Encarregado', variant: 'secondary' },
@@ -68,7 +69,7 @@ export default async function UsuariosPage() {
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.nome}</TableCell>
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                    <TableCell><Badge variant={cfg.variant as any}>{cfg.label}</Badge></TableCell>
+                    <TableCell><Badge variant={cfg.variant}>{cfg.label}</Badge></TableCell>
                     <TableCell>{u.empresaNome ?? '—'}</TableCell>
                     <TableCell>{u.criadoEm.toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell className="text-right">
