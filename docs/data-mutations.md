@@ -184,6 +184,45 @@ Note: `FormData` is used only to read HTML form values in the component. The obj
 
 ---
 
+## Redirects After Mutations
+
+**Never call `redirect()` inside a Server Action.** Redirects must be done client-side after the action resolves.
+
+```tsx
+// ✅ Correct — redirect happens client-side
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { createObraAction } from './actions';
+
+export function NovaObraForm() {
+  const router = useRouter();
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const obra = await createObraAction({ nome: '...', status: 'planejamento' });
+    router.push(`/obras/${obra.id}`);
+  }
+
+  return <form onSubmit={handleSubmit}>{/* ... */}</form>;
+}
+```
+
+```ts
+// ❌ Wrong — never redirect() inside an action
+'use server';
+import { redirect } from 'next/navigation';
+
+export async function createObraAction(params: ...) {
+  const obra = await createObra(params);
+  redirect(`/obras/${obra.id}`); // ← forbidden
+}
+```
+
+Reason: `redirect()` throws internally and bypasses proper error handling and return values. The client component calling the action is the right place to decide where to navigate based on the result.
+
+---
+
 ## Rules Summary
 
 | Rule | Details |
@@ -196,3 +235,4 @@ Note: `FormData` is used only to read HTML form values in the component. The obj
 | Auth check | Always verify `userId` (and `orgId` when needed) via `await auth()` before mutating |
 | Cache invalidation | Call `revalidatePath` (or `revalidateTag`) after successful mutations |
 | Drizzle in actions | Forbidden — always delegate to `src/data/` helpers |
+| Redirects | Never use `redirect()` in actions — redirect client-side via `useRouter` after the action resolves |
