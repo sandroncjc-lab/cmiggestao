@@ -2,6 +2,19 @@ import { db } from '@/app/db'
 import { obras } from '@/app/db/schema'
 import { eq } from 'drizzle-orm'
 
+export async function createObra(data: {
+  nome: string
+  descricao?: string | null
+  status: 'planejada' | 'em_andamento' | 'pausada' | 'concluida'
+  dataInicio?: string | null
+  dataFim?: string | null
+  clienteId: string
+  empresaId: string
+}) {
+  const [obra] = await db.insert(obras).values(data).returning()
+  return obra
+}
+
 export async function getObraById(id: string) {
   const [obra] = await db.select().from(obras).where(eq(obras.id, id)).limit(1)
   return obra ?? null
