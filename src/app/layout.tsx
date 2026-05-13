@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CMI Gestão de Obras",
+  title: "CMIG Gestão de Obras",
   description: "Sistema de gestão de obras para empresas de engenharia",
 };
 
