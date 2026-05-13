@@ -48,7 +48,7 @@ export function Sidebar() {
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
         <Building2 className="h-6 w-6 shrink-0 text-sidebar-primary" />
         {!collapsed && (
-          <span className="font-semibold text-sm truncate">CMI Gestão</span>
+          <span className="font-semibold text-sm truncate">CMIG Gestão</span>
         )}
       </div>
 
