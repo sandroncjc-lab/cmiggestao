@@ -67,19 +67,6 @@ export const empresas = pgTable('empresas', {
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
 })
 
-export const usuarios = pgTable('usuarios', {
-  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  nome: varchar('nome', { length: 255 }).notNull(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  senhaHash: text('senha_hash').notNull(),
-  funcao: funcaoUsuarioEnum('funcao').notNull(),
-  empresaId: uuid('empresa_id')
-    .notNull()
-    .references(() => empresas.id),
-  criadoEm: timestamp('criado_em').defaultNow().notNull(),
-  atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
-})
-
 export const clientes = pgTable('clientes', {
   id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   nome: varchar('nome', { length: 255 }).notNull(),
@@ -90,6 +77,21 @@ export const clientes = pgTable('clientes', {
   empresaId: uuid('empresa_id')
     .notNull()
     .references(() => empresas.id),
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
+  atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
+})
+
+export const usuarios = pgTable('usuarios', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  clerkId: varchar('clerk_id', { length: 255 }).unique(),
+  nome: varchar('nome', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  senhaHash: text('senha_hash'),
+  funcao: funcaoUsuarioEnum('funcao').notNull(),
+  empresaId: uuid('empresa_id')
+    .notNull()
+    .references(() => empresas.id),
+  clienteId: uuid('cliente_id').references(() => clientes.id),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
 })

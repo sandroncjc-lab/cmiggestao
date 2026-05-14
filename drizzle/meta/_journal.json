@@ -8,6 +8,20 @@
       "when": 1777760918424,
       "tag": "0000_dapper_kronos",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778720078984,
+      "tag": "0001_spicy_lizard",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778767843716,
+      "tag": "0002_wide_luminals",
+      "breakpoints": true
     }
   ]
 }

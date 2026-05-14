@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus, Search } from 'lucide-react'
+import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 
 interface Props {
   searchParams: Promise<{ q?: string; status?: string; page?: string }>
@@ -27,7 +28,10 @@ export default async function ObrasPage({ searchParams }: Props) {
   const currentPage = Number(page ?? 1)
   const offset = (currentPage - 1) * PER_PAGE
 
-  const rows = await db
+  const usuario = await getUsuarioAtual()
+  const clienteVendo = usuario ? isCliente(usuario.funcao) : false
+
+  const baseQuery = db
     .select({
       id: obras.id,
       nome: obras.nome,
@@ -42,7 +46,15 @@ export default async function ObrasPage({ searchParams }: Props) {
     .offset(offset)
     .orderBy(obras.criadoEm)
 
-  const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(obras)
+  const rows = clienteVendo && usuario?.clienteId
+    ? await baseQuery.where(eq(obras.clienteId, usuario.clienteId))
+    : await baseQuery
+
+  const countQuery = clienteVendo && usuario?.clienteId
+    ? db.select({ total: sql<number>`count(*)` }).from(obras).where(eq(obras.clienteId, usuario.clienteId))
+    : db.select({ total: sql<number>`count(*)` }).from(obras)
+
+  const [{ total }] = await countQuery
   const totalPages = Math.ceil(Number(total) / PER_PAGE)
 
   return (
@@ -52,9 +64,11 @@ export default async function ObrasPage({ searchParams }: Props) {
           <h2 className="text-2xl font-bold">Obras</h2>
           <p className="text-muted-foreground">{Number(total)} obra{Number(total) !== 1 ? 's' : ''} cadastrada{Number(total) !== 1 ? 's' : ''}</p>
         </div>
-        <Button asChild>
-          <Link href="/obras/nova"><Plus className="h-4 w-4 mr-2" />Nova Obra</Link>
-        </Button>
+        {!clienteVendo && (
+          <Button asChild>
+            <Link href="/obras/nova"><Plus className="h-4 w-4 mr-2" />Nova Obra</Link>
+          </Button>
+        )}
       </div>
 
       <Card>

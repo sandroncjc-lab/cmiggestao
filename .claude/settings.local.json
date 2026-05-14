@@ -7,7 +7,9 @@
       "mcp__neon__get_database_tables",
       "mcp__neon__run_sql_transaction",
       "Bash(git config *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)"
     ]
   },
   "enableAllProjectMcpServers": true,

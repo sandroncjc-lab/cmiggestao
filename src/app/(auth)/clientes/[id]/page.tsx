@@ -1,5 +1,5 @@
 import { db } from '@/app/db'
-import { clientes, obras, contratos, documentos } from '@/app/db/schema'
+import { clientes, obras, contratos, documentos, usuarios } from '@/app/db/schema'
 import { eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { ArrowLeft, Pencil, UserPlus } from 'lucide-react'
+import { CriarAprovadorDialog } from './criar-aprovador-dialog'
 
 const statusObraLabel: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'secondary' | 'destructive' }> = {
   planejada: { label: 'Planejada', variant: 'secondary' },
@@ -21,10 +22,13 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
   const [cliente] = await db.select().from(clientes).where(eq(clientes.id, id)).limit(1)
   if (!cliente) notFound()
 
-  const [obrasDoCliente, contratosDoCliente, documentosDoCliente] = await Promise.all([
+  const [obrasDoCliente, contratosDoCliente, documentosDoCliente, aprovadoresDoCliente] = await Promise.all([
     db.select().from(obras).where(eq(obras.clienteId, id)).orderBy(obras.criadoEm),
     db.select().from(contratos).where(eq(contratos.clienteId, id)).orderBy(contratos.criadoEm),
     db.select().from(documentos).where(eq(documentos.clienteId, id)).orderBy(documentos.criadoEm),
+    db.select({ id: usuarios.id, nome: usuarios.nome, email: usuarios.email })
+      .from(usuarios)
+      .where(eq(usuarios.clienteId, id)),
   ])
 
   return (
@@ -39,9 +43,12 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
             <p className="text-muted-foreground">{cliente.documento ?? 'Sem documento'}</p>
           </div>
         </div>
-        <Button variant="outline" asChild>
-          <Link href={`/clientes/${id}/editar`}><Pencil className="h-4 w-4 mr-2" />Editar</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <CriarAprovadorDialog clienteId={id} clienteNome={cliente.nome} />
+          <Button variant="outline" asChild>
+            <Link href={`/clientes/${id}/editar`}><Pencil className="h-4 w-4 mr-2" />Editar</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -64,6 +71,25 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
           </CardContent>
         </Card>
       </div>
+
+      {aprovadoresDoCliente.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Usuários com Acesso de Aprovação</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <ul className="divide-y divide-border">
+              {aprovadoresDoCliente.map((u) => (
+                <li key={u.id} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="font-medium text-sm">{u.nome}</p>
+                    <p className="text-xs text-muted-foreground">{u.email}</p>
+                  </div>
+                  <Badge variant="secondary">aprovador_cliente</Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="obras">
         <TabsList>

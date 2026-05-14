@@ -20,22 +20,28 @@ import {
   Building2,
 } from 'lucide-react'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/obras', label: 'Obras', icon: HardHat },
-  { href: '/clientes', label: 'Clientes', icon: Users },
-  { href: '/contratos', label: 'Contratos', icon: FileText },
-  { href: '/rdo', label: 'RDO', icon: ClipboardList },
-  { href: '/hh', label: 'Homem Hora', icon: Timer },
-  { href: '/equipamentos', label: 'Equipamentos', icon: Wrench },
-  { href: '/epis', label: 'EPIs', icon: ShieldCheck },
-  { href: '/documentos', label: 'Documentos', icon: FolderOpen },
-  { href: '/usuarios', label: 'Usuários', icon: UserCog },
+const allNavItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
+  { href: '/obras', label: 'Obras', icon: HardHat, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
+  { href: '/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'engenheiro'] },
+  { href: '/contratos', label: 'Contratos', icon: FileText, roles: ['admin', 'engenheiro'] },
+  { href: '/rdo', label: 'RDO', icon: ClipboardList, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
+  { href: '/hh', label: 'Homem Hora', icon: Timer, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
+  { href: '/equipamentos', label: 'Equipamentos', icon: Wrench, roles: ['admin', 'engenheiro', 'encarregado'] },
+  { href: '/epis', label: 'EPIs', icon: ShieldCheck, roles: ['admin', 'engenheiro', 'encarregado'] },
+  { href: '/documentos', label: 'Documentos', icon: FolderOpen, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
+  { href: '/usuarios', label: 'Usuários', icon: UserCog, roles: ['admin'] },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  funcao?: string
+}
+
+export function Sidebar({ funcao = 'admin' }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+
+  const navItems = allNavItems.filter((item) => item.roles.includes(funcao))
 
   return (
     <aside

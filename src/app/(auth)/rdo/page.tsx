@@ -1,6 +1,5 @@
-import { db } from '@/app/db'
-import { rdo, obras } from '@/app/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { listarRdos } from '@/lib/actions/rdo'
+import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +9,7 @@ import { Plus } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
   rascunho: { label: 'Rascunho', variant: 'secondary' },
-  pendente_aprovacao: { label: 'Pendente', variant: 'warning' },
+  pendente_aprovacao: { label: 'Pendente Aprovação', variant: 'warning' },
   aprovado: { label: 'Aprovado', variant: 'success' },
   rejeitado: { label: 'Rejeitado', variant: 'destructive' },
 }
@@ -23,19 +22,9 @@ const climaLabel: Record<string, string> = {
 }
 
 export default async function RdoPage() {
-  const rows = await db
-    .select({
-      id: rdo.id,
-      data: rdo.data,
-      status: rdo.status,
-      clima: rdo.clima,
-      obraNome: obras.nome,
-    })
-    .from(rdo)
-    .leftJoin(obras, eq(rdo.obraId, obras.id))
-    .orderBy(rdo.data)
-
-  const pendentes = rows.filter(r => r.status === 'pendente_aprovacao').length
+  const [rows, usuario] = await Promise.all([listarRdos(), getUsuarioAtual()])
+  const clienteVendo = usuario ? isCliente(usuario.funcao) : false
+  const pendentes = rows.filter((r) => r.status === 'pendente_aprovacao').length
 
   return (
     <div className="space-y-6">
@@ -44,12 +33,18 @@ export default async function RdoPage() {
           <h2 className="text-2xl font-bold">RDO — Relatório Diário de Obras</h2>
           <p className="text-muted-foreground">
             {rows.length} relatório{rows.length !== 1 ? 's' : ''}
-            {pendentes > 0 && <span className="ml-2 text-yellow-600 font-medium">• {pendentes} pendente{pendentes > 1 ? 's' : ''}</span>}
+            {pendentes > 0 && (
+              <span className="ml-2 text-yellow-600 font-medium">
+                • {pendentes} pendente{pendentes > 1 ? 's' : ''} de aprovação
+              </span>
+            )}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/rdo/novo"><Plus className="h-4 w-4 mr-2" />Novo RDO</Link>
-        </Button>
+        {!clienteVendo && (
+          <Button asChild>
+            <Link href="/rdo/novo"><Plus className="h-4 w-4 mr-2" />Novo RDO</Link>
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -75,7 +70,7 @@ export default async function RdoPage() {
               {rows.map((r) => {
                 const cfg = statusConfig[r.status] ?? { label: r.status, variant: 'secondary' }
                 return (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} className={r.status === 'pendente_aprovacao' && clienteVendo ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''}>
                     <TableCell className="font-medium">{r.data}</TableCell>
                     <TableCell>{r.obraNome ?? '—'}</TableCell>
                     <TableCell>{climaLabel[r.clima] ?? r.clima}</TableCell>
@@ -83,8 +78,10 @@ export default async function RdoPage() {
                       <Badge variant={cfg.variant as any}>{cfg.label}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/rdo/${r.id}`}>Ver</Link>
+                      <Button variant={r.status === 'pendente_aprovacao' && clienteVendo ? 'default' : 'ghost'} size="sm" asChild>
+                        <Link href={`/rdo/${r.id}`}>
+                          {r.status === 'pendente_aprovacao' && clienteVendo ? 'Aprovar' : 'Ver'}
+                        </Link>
                       </Button>
                     </TableCell>
                   </TableRow>
