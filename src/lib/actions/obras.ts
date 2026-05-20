@@ -1,10 +1,12 @@
+// CORREÇÃO DE SEGURANÇA - Auditoria
 'use server'
 
 import { db } from '@/app/db'
 import { obras, obrasEnderecos } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
+import { verificarOwnershipObra } from '@/lib/auth/ownership'
 
 export async function criarObra(
   _prevState: unknown,
@@ -58,12 +60,20 @@ export async function atualizarStatusObra(
   id: string,
   status: 'planejada' | 'em_andamento' | 'pausada' | 'concluida',
 ) {
+  const empresaId = await getEmpresaIdOuErro()
+
+  await verificarOwnershipObra(id, empresaId)
+
   await db.update(obras).set({ status, atualizadoEm: new Date() }).where(eq(obras.id, id))
   revalidatePath('/obras')
   revalidatePath(`/obras/${id}`)
 }
 
 export async function excluirObra(id: string) {
-  await db.delete(obras).where(eq(obras.id, id))
+  const empresaId = await getEmpresaIdOuErro()
+
+  await verificarOwnershipObra(id, empresaId)
+
+  await db.delete(obras).where(and(eq(obras.id, id), eq(obras.empresaId, empresaId)))
   revalidatePath('/obras')
 }

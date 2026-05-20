@@ -1,8 +1,9 @@
+// CORREÇÃO DE SEGURANÇA - Auditoria
 'use server'
 
 import { db } from '@/app/db'
-import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, notificacoes, obras } from '@/app/db/schema'
-import { eq, inArray } from 'drizzle-orm'
+import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, notificacoes, obras, servicos } from '@/app/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 
@@ -11,7 +12,7 @@ export async function listarRdos() {
   if (!usuario) return []
 
   if (isCliente(usuario.funcao) && usuario.clienteId) {
-    // busca apenas obras do cliente
+    // aprovador_cliente: apenas obras do seu cliente
     const obrasDoCliente = await db
       .select({ id: obras.id })
       .from(obras)
@@ -26,11 +27,118 @@ export async function listarRdos() {
       .orderBy(rdo.data)
   }
 
+  // usuários internos: filtrar pela empresa — impede cross-tenant
   return db
     .select({ id: rdo.id, data: rdo.data, status: rdo.status, clima: rdo.clima, obraId: rdo.obraId, obraNome: obras.nome })
     .from(rdo)
-    .leftJoin(obras, eq(rdo.obraId, obras.id))
+    .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.empresaId, usuario.empresaId)))
     .orderBy(rdo.data)
+}
+
+export async function criarRdoCompleto(dados: {
+  obraId: string
+  data: string
+  clima: 'ensolarado' | 'nublado' | 'chuvoso' | 'tempestade'
+  atividades: { descricao: string; horaInicio?: string; horaFim?: string; observacoes?: string }[]
+  funcionarios: { nome: string; funcao?: string; horas: string }[]
+  fotos: string[]
+  assinaturaInterna: string
+}): Promise<{ success: boolean; error?: string; rdoId?: string }> {
+  try {
+    const usuario = await getUsuarioAtual()
+    if (!usuario) return { success: false, error: 'Não autenticado' }
+
+    const { obraId, data, clima, atividades, funcionarios, fotos, assinaturaInterna } = dados
+
+    if (!obraId) return { success: false, error: 'Campo Obra é obrigatório' }
+    if (!data) return { success: false, error: 'Campo Data é obrigatório' }
+    if (!clima) return { success: false, error: 'Campo Clima é obrigatório' }
+
+    // verifica que a obra pertence à empresa do usuário
+    const [obraCheck] = await db
+      .select({ id: obras.id })
+      .from(obras)
+      .where(and(eq(obras.id, obraId), eq(obras.empresaId, usuario.empresaId)))
+      .limit(1)
+    if (!obraCheck) return { success: false, error: 'Obra não encontrada ou acesso negado' }
+
+    const rdoId = crypto.randomUUID()
+
+    await db.insert(rdo).values({
+      id: rdoId,
+      obraId,
+      data,
+      criadoPorId: usuario.id,
+      clima,
+      status: 'rascunho',
+      assinaturaInterna: assinaturaInterna || null,
+    })
+
+    if (atividades.length > 0) {
+      await db.insert(rdoAtividades).values(
+        atividades
+          .filter((a) => a.descricao.trim())
+          .map((a) => ({
+            rdoId,
+            descricao: a.descricao,
+            horaInicio: a.horaInicio || null,
+            horaFim: a.horaFim || null,
+            observacoes: a.observacoes || null,
+          }))
+      )
+    }
+
+    if (funcionarios.length > 0) {
+      await db.insert(rdoFuncionarios).values(
+        funcionarios
+          .filter((f) => f.nome.trim())
+          .map((f) => ({
+            rdoId,
+            nomeFuncionario: f.nome,
+            funcao: f.funcao || null,
+            horasTrabalhadas: f.horas || '0',
+          }))
+      )
+    }
+
+    if (fotos.length > 0) {
+      await db.insert(rdoFotos).values(
+        fotos.map((url) => ({
+          rdoId,
+          url,
+          enviadoPorId: usuario.id,
+          tiradaEm: new Date(),
+        }))
+      )
+    }
+
+    if (assinaturaInterna) {
+      await db.update(rdo).set({ status: 'pendente_aprovacao', atualizadoEm: new Date() }).where(eq(rdo.id, rdoId))
+
+      const [obraData] = await db
+        .select({ aprovadorClienteId: obras.aprovadorClienteId, nome: obras.nome })
+        .from(obras)
+        .where(eq(obras.id, obraId))
+        .limit(1)
+
+      if (obraData?.aprovadorClienteId) {
+        await db.insert(notificacoes).values({
+          usuarioId: obraData.aprovadorClienteId,
+          titulo: 'RDO aguardando sua aprovação',
+          mensagem: `Um novo RDO da obra "${obraData.nome}" de ${data} foi enviado para sua aprovação.`,
+          tipo: 'rdo_pendente',
+          referenciaId: rdoId,
+          tabelaReferencia: 'rdo',
+        })
+      }
+    }
+
+    revalidatePath('/rdo')
+    return { success: true, rdoId }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro ao criar RDO'
+    return { success: false, error: msg }
+  }
 }
 
 export async function criarRdo(
@@ -48,6 +156,14 @@ export async function criarRdo(
     if (!obraId) return { success: false, error: 'Campo Obra é obrigatório' }
     if (!data) return { success: false, error: 'Campo Data é obrigatório' }
     if (!clima) return { success: false, error: 'Campo Clima é obrigatório' }
+
+    // verifica que a obra pertence à empresa do usuário
+    const [obraCheck] = await db
+      .select({ id: obras.id })
+      .from(obras)
+      .where(and(eq(obras.id, obraId), eq(obras.empresaId, usuario.empresaId)))
+      .limit(1)
+    if (!obraCheck) return { success: false, error: 'Obra não encontrada ou acesso negado' }
 
     const rdoId = crypto.randomUUID()
     await db.insert(rdo).values({
@@ -89,7 +205,6 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
     atualizadoEm: new Date(),
   }).where(eq(rdo.id, id))
 
-  // notifica o aprovador do cliente da obra
   const [rdoData] = await db
     .select({ obraId: rdo.obraId, data: rdo.data })
     .from(rdo)

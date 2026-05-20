@@ -2,17 +2,17 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { Plus, Trash2, PenLine, RotateCcw } from 'lucide-react'
+import { Plus, Trash2, RotateCcw, Camera, X } from 'lucide-react'
+import { criarRdoCompleto } from '@/lib/actions/rdo'
 
 interface Obra { id: string; nome: string }
-
 interface Atividade { descricao: string; horaInicio: string; horaFim: string; observacoes: string }
 interface Funcionario { nome: string; funcao: string; horas: string }
 
@@ -21,153 +21,150 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
 
-  // Step 1 — básico
+  // Step 1
   const [obraId, setObraId] = useState(defaultObraId ?? '')
   const [data, setData] = useState(new Date().toISOString().split('T')[0])
   const [clima, setClima] = useState('ensolarado')
 
-  // Step 2 — atividades
+  // Step 2
   const [atividades, setAtividades] = useState<Atividade[]>([{ descricao: '', horaInicio: '', horaFim: '', observacoes: '' }])
 
-  // Step 3 — funcionários
+  // Step 3
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([{ nome: '', funcao: '', horas: '' }])
 
-  // Step 4 — assinatura
+  // Step 4 — fotos
+  const [fotos, setFotos] = useState<{ url: string; file: File }[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Step 5 — assinatura
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [drawing, setDrawing] = useState(false)
 
-  function addAtividade() {
-    setAtividades(prev => [...prev, { descricao: '', horaInicio: '', horaFim: '', observacoes: '' }])
-  }
-  function removeAtividade(i: number) {
-    setAtividades(prev => prev.filter((_, idx) => idx !== i))
-  }
+  // ── Atividades ──────────────────────────────────────────────────────────────
+  function addAtividade() { setAtividades(p => [...p, { descricao: '', horaInicio: '', horaFim: '', observacoes: '' }]) }
+  function removeAtividade(i: number) { setAtividades(p => p.filter((_, idx) => idx !== i)) }
   function updateAtividade(i: number, field: keyof Atividade, value: string) {
-    setAtividades(prev => prev.map((a, idx) => idx === i ? { ...a, [field]: value } : a))
+    setAtividades(p => p.map((a, idx) => idx === i ? { ...a, [field]: value } : a))
   }
 
-  function addFuncionario() {
-    setFuncionarios(prev => [...prev, { nome: '', funcao: '', horas: '' }])
-  }
-  function removeFuncionario(i: number) {
-    setFuncionarios(prev => prev.filter((_, idx) => idx !== i))
-  }
+  // ── Funcionários ────────────────────────────────────────────────────────────
+  function addFuncionario() { setFuncionarios(p => [...p, { nome: '', funcao: '', horas: '' }]) }
+  function removeFuncionario(i: number) { setFuncionarios(p => p.filter((_, idx) => idx !== i)) }
   function updateFuncionario(i: number, field: keyof Funcionario, value: string) {
-    setFuncionarios(prev => prev.map((f, idx) => idx === i ? { ...f, [field]: value } : f))
+    setFuncionarios(p => p.map((f, idx) => idx === i ? { ...f, [field]: value } : f))
   }
 
-  // Canvas drawing
+  // ── Fotos ───────────────────────────────────────────────────────────────────
+  function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    files.forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          setFotos((p) => [...p, { url: ev.target!.result as string, file }])
+        }
+      }
+      reader.readAsDataURL(file)
+    })
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+  function removeFoto(i: number) { setFotos(p => p.filter((_, idx) => idx !== i)) }
+
+  // ── Assinatura ──────────────────────────────────────────────────────────────
   function getPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current!
     const rect = canvas.getBoundingClientRect()
-    if ('touches' in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }
-    }
+    if ('touches' in e) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }
     return { x: e.clientX - rect.left, y: e.clientY - rect.top }
   }
-
   function startDraw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
     setDrawing(true)
     const { x, y } = getPos(e)
-    ctx.beginPath()
-    ctx.moveTo(x, y)
+    ctx.beginPath(); ctx.moveTo(x, y)
   }
-
   function draw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
     if (!drawing) return
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
     const { x, y } = getPos(e)
-    ctx.lineTo(x, y)
-    ctx.strokeStyle = '#000'
-    ctx.lineWidth = 2
-    ctx.lineCap = 'round'
-    ctx.stroke()
+    ctx.lineTo(x, y); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.stroke()
   }
-
   function stopDraw() { setDrawing(false) }
-  function clearCanvas() {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
-  }
-  function getSignature() {
-    return canvasRef.current?.toDataURL('image/png') ?? ''
-  }
+  function clearCanvas() { canvasRef.current?.getContext('2d')?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height) }
 
+  // ── Submit ──────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     setLoading(true)
     try {
-      const formData = new FormData()
-      formData.set('obraId', obraId)
-      formData.set('data', data)
-      formData.set('clima', clima)
-      formData.set('criadoPorId', 'placeholder') // será substituído por auth real
-      formData.set('assinaturaInterna', getSignature())
-      formData.set('atividades', JSON.stringify(atividades))
-      formData.set('funcionarios', JSON.stringify(funcionarios))
+      const assinatura = canvasRef.current?.toDataURL('image/png') ?? ''
+      const result = await criarRdoCompleto({
+        obraId,
+        data,
+        clima: clima as 'ensolarado' | 'nublado' | 'chuvoso' | 'tempestade',
+        atividades: atividades.filter((a) => a.descricao.trim()),
+        funcionarios: funcionarios.filter((f) => f.nome.trim()),
+        fotos: fotos.map((f) => f.url),
+        assinaturaInterna: assinatura,
+      })
 
-      const res = await fetch('/api/rdo', { method: 'POST', body: formData })
-      if (res.ok) router.push('/rdo')
+      if (result.success) {
+        toast.success('RDO enviado para aprovação!')
+        router.push('/rdo')
+      } else {
+        toast.error(result.error ?? 'Erro ao salvar RDO')
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  const steps = [
-    { label: 'Dados Gerais' },
-    { label: 'Atividades' },
-    { label: 'Funcionários' },
-    { label: 'Assinatura' },
-  ]
+  const steps = ['Dados Gerais', 'Atividades', 'Funcionários', 'Fotos', 'Assinatura']
 
   return (
     <div className="space-y-6">
-      {/* Step indicator */}
-      <div className="flex items-center gap-2">
+      {/* Indicador de passos */}
+      <div className="flex items-center gap-2 flex-wrap">
         {steps.map((s, i) => (
           <div key={i} className="flex items-center gap-2">
             <button
               onClick={() => i < step - 1 && setStep(i + 1)}
               className={[
                 'flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors',
-                step === i + 1
-                  ? 'bg-primary text-primary-foreground'
-                  : i < step - 1
-                    ? 'bg-primary/20 text-primary cursor-pointer'
+                step === i + 1 ? 'bg-primary text-primary-foreground'
+                  : i < step - 1 ? 'bg-primary/20 text-primary cursor-pointer'
                     : 'bg-muted text-muted-foreground',
               ].join(' ')}
             >
               {i + 1}
             </button>
-            <span className={`text-sm hidden sm:block ${step === i + 1 ? 'font-medium' : 'text-muted-foreground'}`}>{s.label}</span>
-            {i < steps.length - 1 && <div className="h-px w-8 bg-border" />}
+            <span className={`text-sm hidden sm:block ${step === i + 1 ? 'font-medium' : 'text-muted-foreground'}`}>{s}</span>
+            {i < steps.length - 1 && <div className="h-px w-6 bg-border" />}
           </div>
         ))}
       </div>
 
-      {/* Step 1 */}
+      {/* Step 1 — Dados Gerais */}
       {step === 1 && (
         <Card>
           <CardHeader><CardTitle>Dados Gerais</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Obra *</Label>
-              <Select value={obraId} onChange={e => setObraId(e.target.value)} required>
+              <Select value={obraId} onChange={(e) => setObraId(e.target.value)} required>
                 <option value="">Selecione a obra</option>
-                {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                {obras.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Data *</Label>
-                <Input type="date" value={data} onChange={e => setData(e.target.value)} required />
+                <Input type="date" value={data} onChange={(e) => setData(e.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label>Clima *</Label>
-                <Select value={clima} onChange={e => setClima(e.target.value)}>
+                <Select value={clima} onChange={(e) => setClima(e.target.value)}>
                   <option value="ensolarado">☀️ Ensolarado</option>
                   <option value="nublado">⛅ Nublado</option>
                   <option value="chuvoso">🌧️ Chuvoso</option>
@@ -182,7 +179,7 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
         </Card>
       )}
 
-      {/* Step 2 */}
+      {/* Step 2 — Atividades */}
       {step === 2 && (
         <Card>
           <CardHeader>
@@ -204,21 +201,21 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
                 </div>
                 <div className="space-y-2">
                   <Label>Descrição *</Label>
-                  <Input value={a.descricao} onChange={e => updateAtividade(i, 'descricao', e.target.value)} placeholder="Descreva a atividade" />
+                  <Input value={a.descricao} onChange={(e) => updateAtividade(i, 'descricao', e.target.value)} placeholder="Descreva a atividade" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Hora Início</Label>
-                    <Input type="time" value={a.horaInicio} onChange={e => updateAtividade(i, 'horaInicio', e.target.value)} />
+                    <Input type="time" value={a.horaInicio} onChange={(e) => updateAtividade(i, 'horaInicio', e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label>Hora Fim</Label>
-                    <Input type="time" value={a.horaFim} onChange={e => updateAtividade(i, 'horaFim', e.target.value)} />
+                    <Input type="time" value={a.horaFim} onChange={(e) => updateAtividade(i, 'horaFim', e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Observações</Label>
-                  <Textarea value={a.observacoes} onChange={e => updateAtividade(i, 'observacoes', e.target.value)} placeholder="Observações opcionais" />
+                  <Textarea value={a.observacoes} onChange={(e) => updateAtividade(i, 'observacoes', e.target.value)} placeholder="Opcional" />
                 </div>
               </div>
             ))}
@@ -230,7 +227,7 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
         </Card>
       )}
 
-      {/* Step 3 */}
+      {/* Step 3 — Funcionários */}
       {step === 3 && (
         <Card>
           <CardHeader>
@@ -244,16 +241,16 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
               <div key={i} className="grid grid-cols-3 gap-3 items-end">
                 <div className="space-y-2">
                   <Label>Nome</Label>
-                  <Input value={f.nome} onChange={e => updateFuncionario(i, 'nome', e.target.value)} placeholder="Nome do funcionário" />
+                  <Input value={f.nome} onChange={(e) => updateFuncionario(i, 'nome', e.target.value)} placeholder="Nome" />
                 </div>
                 <div className="space-y-2">
                   <Label>Função</Label>
-                  <Input value={f.funcao} onChange={e => updateFuncionario(i, 'funcao', e.target.value)} placeholder="Ex: Pedreiro" />
+                  <Input value={f.funcao} onChange={(e) => updateFuncionario(i, 'funcao', e.target.value)} placeholder="Ex: Pedreiro" />
                 </div>
                 <div className="flex gap-2">
                   <div className="space-y-2 flex-1">
                     <Label>Horas</Label>
-                    <Input type="number" step="0.5" min="0" value={f.horas} onChange={e => updateFuncionario(i, 'horas', e.target.value)} placeholder="8" />
+                    <Input type="number" step="0.5" min="0" value={f.horas} onChange={(e) => updateFuncionario(i, 'horas', e.target.value)} placeholder="8" />
                   </div>
                   {funcionarios.length > 1 && (
                     <Button size="icon" variant="ghost" className="mt-6" onClick={() => removeFuncionario(i)}>
@@ -271,12 +268,70 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
         </Card>
       )}
 
-      {/* Step 4 — Assinatura */}
+      {/* Step 4 — Fotos */}
       {step === 4 && (
         <Card>
-          <CardHeader><CardTitle>Assinatura do Responsável Interno</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Fotos da Obra</CardTitle>
+              <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Camera className="h-4 w-4 mr-1" />Adicionar Fotos
+              </Button>
+            </div>
+          </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">Assine no campo abaixo (touch ou mouse)</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFotoChange}
+            />
+            {fotos.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center rounded-md border-2 border-dashed border-border py-12 cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Clique para adicionar fotos</p>
+                <p className="text-xs text-muted-foreground">(opcional)</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {fotos.map((f, i) => (
+                  <div key={i} className="relative group aspect-square">
+                    <img src={f.url} alt={`Foto ${i + 1}`} className="h-full w-full rounded-md object-cover border border-border" />
+                    <button
+                      onClick={() => removeFoto(i)}
+                      className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                <div
+                  className="flex aspect-square items-center justify-center rounded-md border-2 border-dashed border-border cursor-pointer hover:border-primary/50"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Plus className="h-6 w-6 text-muted-foreground" />
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep(3)}>Voltar</Button>
+              <Button onClick={() => setStep(5)}>Próximo</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 5 — Assinatura */}
+      {step === 5 && (
+        <Card>
+          <CardHeader><CardTitle>Assinatura do Responsável</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">Assine abaixo. O RDO será enviado automaticamente para aprovação do cliente.</p>
             <div className="rounded-md border border-input bg-white">
               <canvas
                 ref={canvasRef}
@@ -296,9 +351,9 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
               <RotateCcw className="h-4 w-4 mr-2" />Limpar
             </Button>
             <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(3)}>Voltar</Button>
+              <Button variant="outline" onClick={() => setStep(4)}>Voltar</Button>
               <Button onClick={handleSubmit} disabled={loading}>
-                {loading ? 'Salvando...' : 'Enviar para Aprovação'}
+                {loading ? 'Salvando...' : 'Salvar e Enviar para Aprovação'}
               </Button>
             </div>
           </CardContent>

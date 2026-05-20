@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { criarObra } from '@/lib/actions/obras'
@@ -11,10 +11,21 @@ import { Textarea } from '@/components/ui/textarea'
 import Link from 'next/link'
 
 type Cliente = { id: string; nome: string }
+type Aprovador = { id: string; nome: string; email: string; clienteId: string | null }
+type Responsavel = { id: string; nome: string }
 
-export function ObraForm({ clientes }: { clientes: Cliente[] }) {
+export function ObraForm({
+  clientes,
+  aprovadores,
+  responsaveis,
+}: {
+  clientes: Cliente[]
+  aprovadores: Aprovador[]
+  responsaveis: Responsavel[]
+}) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(criarObra, null)
+  const [clienteIdSelecionado, setClienteIdSelecionado] = useState('')
 
   useEffect(() => {
     if (!state) return
@@ -25,6 +36,10 @@ export function ObraForm({ clientes }: { clientes: Cliente[] }) {
       toast.error(state.error)
     }
   }, [state, router])
+
+  const aprovadoresDoCliente = aprovadores.filter(
+    (a) => a.clienteId === clienteIdSelecionado
+  )
 
   return (
     <form action={formAction} className="space-y-4">
@@ -44,13 +59,53 @@ export function ObraForm({ clientes }: { clientes: Cliente[] }) {
           id="clienteId"
           name="clienteId"
           required
+          value={clienteIdSelecionado}
+          onChange={(e) => setClienteIdSelecionado(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="">Selecione um cliente</option>
           {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nome}
-            </option>
+            <option key={c.id} value={c.id}>{c.nome}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="aprovadorClienteId">Aprovador do Cliente</Label>
+        <select
+          id="aprovadorClienteId"
+          name="aprovadorClienteId"
+          disabled={!clienteIdSelecionado}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <option value="">
+            {clienteIdSelecionado
+              ? aprovadoresDoCliente.length === 0
+                ? 'Nenhum aprovador cadastrado para este cliente'
+                : 'Selecione o aprovador'
+              : 'Selecione o cliente primeiro'}
+          </option>
+          {aprovadoresDoCliente.map((a) => (
+            <option key={a.id} value={a.id}>{a.nome} — {a.email}</option>
+          ))}
+        </select>
+        {clienteIdSelecionado && aprovadoresDoCliente.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Crie um acesso de aprovação na página do cliente antes de vincular.
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="responsavelInternoId">Responsável Interno</Label>
+        <select
+          id="responsavelInternoId"
+          name="responsavelInternoId"
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="">Selecione o responsável interno</option>
+          {responsaveis.map((r) => (
+            <option key={r.id} value={r.id}>{r.nome}</option>
           ))}
         </select>
       </div>
