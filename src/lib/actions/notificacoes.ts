@@ -31,7 +31,13 @@ export async function contarNaoLidas() {
 }
 
 export async function marcarComoLida(id: string) {
-  await db.update(notificacoes).set({ lida: true }).where(eq(notificacoes.id, id))
+  const usuario = await getUsuarioAtual()
+  if (!usuario) return
+  // filtra pelo usuário logado — impede marcar notificações de outros
+  await db
+    .update(notificacoes)
+    .set({ lida: true })
+    .where(and(eq(notificacoes.id, id), eq(notificacoes.usuarioId, usuario.id)))
   revalidatePath('/')
 }
 

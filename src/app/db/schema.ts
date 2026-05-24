@@ -293,6 +293,7 @@ export const equipamentos = pgTable('equipamentos', {
   numeroSerie: varchar('numero_serie', { length: 100 }),
   status: statusEquipamentoEnum('status').notNull().default('disponivel'),
   obraId: uuid('obra_id').references(() => obras.id),
+  empresaId: uuid('empresa_id').references(() => empresas.id),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
 })
@@ -323,6 +324,7 @@ export const epis = pgTable('epis', {
   dataEntrega: date('data_entrega').notNull(),
   status: statusEpiEnum('status').notNull().default('ativo'),
   obraId: uuid('obra_id').references(() => obras.id),
+  empresaId: uuid('empresa_id').references(() => empresas.id),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
 })
