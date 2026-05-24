@@ -2,7 +2,7 @@
 
 import { db } from '@/app/db'
 import { clientes, usuarios } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
@@ -55,6 +55,7 @@ export async function criarCliente(
 }
 
 export async function atualizarCliente(id: string, formData: FormData) {
+  const empresaId = await getEmpresaIdOuErro()
   const data = {
     nome: formData.get('nome') as string,
     documento: (formData.get('documento') as string) || null,
@@ -63,13 +64,20 @@ export async function atualizarCliente(id: string, formData: FormData) {
     endereco: (formData.get('endereco') as string) || null,
     atualizadoEm: new Date(),
   }
-  await db.update(clientes).set(data).where(eq(clientes.id, id))
+  // garante que o cliente pertence à empresa do usuário logado
+  await db.update(clientes).set(data).where(
+    and(eq(clientes.id, id), eq(clientes.empresaId, empresaId))
+  )
   revalidatePath('/clientes')
   revalidatePath(`/clientes/${id}`)
 }
 
 export async function excluirCliente(id: string) {
-  await db.delete(clientes).where(eq(clientes.id, id))
+  const empresaId = await getEmpresaIdOuErro()
+  // garante que o cliente pertence à empresa do usuário logado
+  await db.delete(clientes).where(
+    and(eq(clientes.id, id), eq(clientes.empresaId, empresaId))
+  )
   revalidatePath('/clientes')
 }
 
@@ -91,23 +99,49 @@ export async function criarUsuarioAprovador(
       return { success: false, error: 'A senha deve ter pelo menos 8 caracteres' }
     }
 
-    // cria usuário no Clerk
-    const clerk = await clerkClient()
-    const clerkUser = await clerk.users.createUser({
-      emailAddress: [email],
-      password: senha,
-      firstName: nome,
-    })
+    // Garante que o clienteId pertence à empresa do usuário logado (isolamento multi-tenant)
+    const [clienteCheck] = await db
+      .select({ id: clientes.id })
+      .from(clientes)
+      .where(and(eq(clientes.id, clienteId), eq(clientes.empresaId, empresaId)))
+      .limit(1)
+    if (!clienteCheck) {
+      return { success: false, error: 'Cliente não encontrado' }
+    }
 
-    // cria registro local vinculado ao cliente
-    await db.insert(usuarios).values({
-      clerkId: clerkUser.id,
-      nome,
-      email,
-      funcao: 'aprovador_cliente',
-      empresaId,
-      clienteId,
-    })
+    const clerk = await clerkClient()
+
+    // Cria usuário no Clerk primeiro; guarda o ID para rollback se o DB falhar
+    let clerkUserId: string | null = null
+    try {
+      const clerkUser = await clerk.users.createUser({
+        emailAddress: [email],
+        password: senha,
+        firstName: nome,
+      })
+      clerkUserId = clerkUser.id
+
+      // Cria registro local vinculado ao cliente
+      await db.insert(usuarios).values({
+        clerkId: clerkUserId,
+        nome,
+        email,
+        funcao: 'aprovador_cliente',
+        empresaId,
+        clienteId,
+      })
+    } catch (innerErr) {
+      // Rollback: se o DB falhou mas o Clerk já criou o usuário, deletar para evitar órfão
+      if (clerkUserId) {
+        try {
+          await clerk.users.deleteUser(clerkUserId)
+        } catch {
+          // ignora erro de cleanup — o usuário órfão deverá ser removido manualmente
+          console.error('[rollback] falha ao deletar usuário órfão no Clerk:', clerkUserId)
+        }
+      }
+      throw innerErr // re-lança para o catch externo formatar a mensagem
+    }
 
     revalidatePath(`/clientes/${clienteId}`)
     return { success: true }
