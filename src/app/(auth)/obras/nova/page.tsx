@@ -1,7 +1,7 @@
 import { db } from '@/app/db'
 import { clientes, usuarios } from '@/app/db/schema'
 import { getUsuarioAtual } from '@/lib/server/getUsuario'
-import { eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import Link from 'next/link'
@@ -28,11 +28,11 @@ export default async function NovaObraPage() {
     db
       .select({ id: usuarios.id, nome: usuarios.nome, email: usuarios.email, clienteId: usuarios.clienteId })
       .from(usuarios)
-      .where(eq(usuarios.funcao, 'aprovador_cliente')),
+      .where(eq(usuarios.empresaId, usuario.empresaId)),
     db
       .select({ id: usuarios.id, nome: usuarios.nome })
       .from(usuarios)
-      .where(inArray(usuarios.funcao, ['admin', 'engenheiro', 'encarregado']))
+      .where(eq(usuarios.empresaId, usuario.empresaId))
       .orderBy(usuarios.nome),
   ])
 

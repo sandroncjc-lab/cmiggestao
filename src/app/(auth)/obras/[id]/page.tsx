@@ -1,6 +1,6 @@
 import { db } from '@/app/db'
 import { obras, clientes, usuarios, servicos, rdo, obrasEnderecos, hhContratos, hhRegistros } from '@/app/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,13 @@ const statusRdoConfig: Record<string, { label: string; variant: string }> = {
 export default async function ObraDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const usuario = await getUsuarioAtual()
-  const clienteVendo = usuario ? isCliente(usuario.funcao) : false
+  if (!usuario) notFound()
+  const clienteVendo = isCliente(usuario.funcao)
+
+  // Filtro multi-tenant: cliente vê via clienteId, interno via empresaId
+  const whereClause = clienteVendo && usuario.clienteId
+    ? and(eq(obras.id, id), eq(obras.clienteId, usuario.clienteId))
+    : and(eq(obras.id, id), eq(obras.empresaId, usuario.empresaId))
 
   const [obraRow] = await db
     .select({
@@ -51,7 +57,7 @@ export default async function ObraDetailPage({ params }: { params: Promise<{ id:
     })
     .from(obras)
     .leftJoin(clientes, eq(obras.clienteId, clientes.id))
-    .where(eq(obras.id, id))
+    .where(whereClause)
     .limit(1)
 
   if (!obraRow) notFound()

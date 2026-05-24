@@ -2,7 +2,7 @@
 'use server'
 
 import { db } from '@/app/db'
-import { obras, obrasEnderecos, usuarios } from '@/app/db/schema'
+import { obras, obrasEnderecos, usuarios, clientes } from '@/app/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
@@ -15,22 +15,32 @@ export async function criarAprovadorInline(
   email: string,
   senha: string,
 ): Promise<{ success: boolean; aprovador?: { id: string; nome: string; email: string }; error?: string }> {
+  if (!nome || !email || !senha || !clienteId) {
+    return { success: false, error: 'Todos os campos são obrigatórios' }
+  }
+  if (senha.length < 8) {
+    return { success: false, error: 'A senha deve ter pelo menos 8 caracteres' }
+  }
+
+  const empresaId = await getEmpresaIdOuErro()
+
+  // Verifica que o clienteId pertence à empresa do usuário logado
+  const [clienteRow] = await db
+    .select({ id: clientes.id })
+    .from(clientes)
+    .where(and(eq(clientes.id, clienteId), eq(clientes.empresaId, empresaId)))
+    .limit(1)
+  if (!clienteRow) return { success: false, error: 'Cliente não pertence à sua empresa' }
+
+  let clerkUserId: string | null = null
   try {
-    const empresaId = await getEmpresaIdOuErro()
-
-    if (!nome || !email || !senha || !clienteId) {
-      return { success: false, error: 'Todos os campos são obrigatórios' }
-    }
-    if (senha.length < 8) {
-      return { success: false, error: 'A senha deve ter pelo menos 8 caracteres' }
-    }
-
     const clerk = await clerkClient()
     const clerkUser = await clerk.users.createUser({
       emailAddress: [email],
       password: senha,
       firstName: nome,
     })
+    clerkUserId = clerkUser.id
 
     const [inserido] = await db
       .insert(usuarios)
@@ -46,6 +56,15 @@ export async function criarAprovadorInline(
 
     return { success: true, aprovador: inserido }
   } catch (err) {
+    // Rollback: remove usuário do Clerk se o insert no banco falhou
+    if (clerkUserId) {
+      try {
+        const clerk = await clerkClient()
+        await clerk.users.deleteUser(clerkUserId)
+      } catch {
+        console.error('[rollback] falha ao deletar aprovador órfão no Clerk:', clerkUserId)
+      }
+    }
     const msg = err instanceof Error ? err.message : 'Erro ao criar aprovador'
     return { success: false, error: msg }
   }
