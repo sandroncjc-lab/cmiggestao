@@ -44,6 +44,9 @@ export function ClienteForm() {
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input id="email" name="email" type="email" placeholder="email@empresa.com" />
+        <p className="text-xs text-muted-foreground">
+          Se informado, o cliente receberá um convite por email para criar a própria senha de acesso.
+        </p>
       </div>
 
       <div className="space-y-2">

@@ -44,7 +44,7 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <CriarAprovadorDialog clienteId={id} clienteNome={cliente.nome} />
+          <CriarAprovadorDialog clienteId={id} clienteNome={cliente.nome} temEmail={!!cliente.email} />
           <Button variant="outline" asChild>
             <Link href={`/clientes/${id}/editar`}><Pencil className="h-4 w-4 mr-2" />Editar</Link>
           </Button>

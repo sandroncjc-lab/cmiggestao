@@ -1,95 +1,50 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { UserPlus } from 'lucide-react'
-import { criarUsuarioAprovador } from '@/lib/actions/clientes'
-import { useRouter } from 'next/navigation'
+import { Mail, CheckCircle2 } from 'lucide-react'
+import { reenviarConvite } from '@/lib/actions/clientes'
 
-export function CriarAprovadorDialog({ clienteId, clienteNome }: { clienteId: string; clienteNome: string }) {
-  const [open, setOpen] = useState(false)
-  const [error, setError] = useState('')
+export function CriarAprovadorDialog({ clienteId, clienteNome, temEmail }: {
+  clienteId: string
+  clienteNome: string
+  temEmail: boolean
+}) {
   const [isPending, startTransition] = useTransition()
-  const router = useRouter()
-  // ref no form — imune ao problema do Portal do Radix desconectar e.currentTarget
-  const formRef = useRef<HTMLFormElement>(null)
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError('')
-
-    const form = formRef.current
-    if (!form) return
-
-    // Lê os valores via elements.namedItem — seguro mesmo dentro de Portal
-    const nome = (form.elements.namedItem('nome') as HTMLInputElement).value.trim()
-    const email = (form.elements.namedItem('email') as HTMLInputElement).value.trim()
-    const senha = (form.elements.namedItem('senha') as HTMLInputElement).value
-
-    // Validação client-side antes de ir ao servidor
-    if (!nome) { setError('Nome é obrigatório'); return }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Email inválido'); return }
-    if (senha.length < 8) { setError('Senha deve ter mínimo 8 caracteres'); return }
-
-    // Monta FormData manualmente — não usa e.currentTarget nem new FormData(form)
-    // para evitar o bug de campos vazios dentro de Portal
-    const formData = new FormData()
-    formData.set('clienteId', clienteId)
-    formData.set('nome', nome)
-    formData.set('email', email)
-    formData.set('senha', senha)
-
+  function handleReenviar() {
+    setResult(null)
     startTransition(async () => {
-      const result = await criarUsuarioAprovador(null, formData)
-      if (result.success) {
-        form.reset()
-        setOpen(false)
-        router.refresh()
-      } else {
-        setError(result.error ?? 'Erro ao criar acesso')
-      }
+      const res = await reenviarConvite(clienteId)
+      setResult(
+        res.success
+          ? { ok: true, msg: 'Convite enviado! O cliente receberá um email para criar a senha.' }
+          : { ok: false, msg: res.error ?? 'Erro ao reenviar convite' }
+      )
     })
   }
 
-  return (
-    <>
-      <Button variant="outline" onClick={() => { setError(''); setOpen(true) }}>
-        <UserPlus className="h-4 w-4 mr-2" />Criar Acesso de Aprovação
+  if (!temEmail) {
+    return (
+      <Button variant="outline" disabled title="Cadastre o email do cliente para enviar acesso">
+        <Mail className="h-4 w-4 mr-2" />Enviar Acesso
       </Button>
+    )
+  }
 
-      <Dialog open={open} onClose={() => setOpen(false)}>
-        <DialogHeader>
-          <DialogTitle>Criar acesso para {clienteNome}</DialogTitle>
-        </DialogHeader>
-        <DialogContent>
-          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="ap-nome">Nome completo</Label>
-              <Input id="ap-nome" name="nome" required placeholder="João Silva" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ap-email">Email</Label>
-              <Input id="ap-email" name="email" type="email" required placeholder="joao@empresa.com" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ap-senha">Senha (mínimo 8 caracteres)</Label>
-              <Input id="ap-senha" name="senha" type="password" required minLength={8} placeholder="••••••••" />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? 'Criando...' : 'Criar Acesso'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="outline" onClick={handleReenviar} disabled={isPending}>
+        <Mail className="h-4 w-4 mr-2" />
+        {isPending ? 'Enviando...' : 'Enviar / Reenviar Convite'}
+      </Button>
+      {result && (
+        <p className={`text-xs flex items-center gap-1 ${result.ok ? 'text-green-600' : 'text-destructive'}`}>
+          {result.ok && <CheckCircle2 className="h-3 w-3" />}
+          {result.msg}
+        </p>
+      )}
+    </div>
   )
 }

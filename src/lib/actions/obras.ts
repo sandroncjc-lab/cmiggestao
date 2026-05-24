@@ -1,4 +1,3 @@
-// CORREÇÃO DE SEGURANÇA - Auditoria
 'use server'
 
 import { db } from '@/app/db'
@@ -9,22 +8,23 @@ import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
 import { verificarOwnershipObra } from '@/lib/auth/ownership'
 import { clerkClient } from '@clerk/nextjs/server'
 
+/**
+ * Cria aprovador via convite Clerk (sem senha manual).
+ * O cliente recebe email e define a própria senha.
+ * Mantém a mesma assinatura do antigo criarAprovadorInline para não quebrar ObraForm.
+ */
 export async function criarAprovadorInline(
   clienteId: string,
   nome: string,
   email: string,
-  senha: string,
+  _senha: string, // ignorado — não usamos mais senha manual
 ): Promise<{ success: boolean; aprovador?: { id: string; nome: string; email: string }; error?: string }> {
-  if (!nome || !email || !senha || !clienteId) {
-    return { success: false, error: 'Todos os campos são obrigatórios' }
-  }
-  if (senha.length < 8) {
-    return { success: false, error: 'A senha deve ter pelo menos 8 caracteres' }
+  if (!nome || !email || !clienteId) {
+    return { success: false, error: 'Nome e email são obrigatórios' }
   }
 
   const empresaId = await getEmpresaIdOuErro()
 
-  // Verifica que o clienteId pertence à empresa do usuário logado
   const [clienteRow] = await db
     .select({ id: clientes.id })
     .from(clientes)
@@ -32,42 +32,39 @@ export async function criarAprovadorInline(
     .limit(1)
   if (!clienteRow) return { success: false, error: 'Cliente não pertence à sua empresa' }
 
-  let clerkUserId: string | null = null
-  try {
-    const clerk = await clerkClient()
-    const clerkUser = await clerk.users.createUser({
-      emailAddress: [email],
-      password: senha,
-      firstName: nome,
-    })
-    clerkUserId = clerkUser.id
-
-    const [inserido] = await db
-      .insert(usuarios)
-      .values({
-        clerkId: clerkUser.id,
-        nome,
-        email,
-        funcao: 'aprovador_cliente',
-        empresaId,
-        clienteId,
-      })
-      .returning({ id: usuarios.id, nome: usuarios.nome, email: usuarios.email })
-
-    return { success: true, aprovador: inserido }
-  } catch (err) {
-    // Rollback: remove usuário do Clerk se o insert no banco falhou
-    if (clerkUserId) {
-      try {
-        const clerk = await clerkClient()
-        await clerk.users.deleteUser(clerkUserId)
-      } catch {
-        console.error('[rollback] falha ao deletar aprovador órfão no Clerk:', clerkUserId)
-      }
-    }
-    const msg = err instanceof Error ? err.message : 'Erro ao criar aprovador'
-    return { success: false, error: msg }
+  // Já existe usuário com esse email?
+  const [existente] = await db
+    .select({ id: usuarios.id, nome: usuarios.nome, email: usuarios.email })
+    .from(usuarios)
+    .where(eq(usuarios.email, email))
+    .limit(1)
+  if (existente) {
+    return { success: false, error: 'Este email já possui acesso ou convite pendente no sistema.' }
   }
+
+  const clerk = await clerkClient()
+  try {
+    await clerk.invitations.createInvitation({
+      emailAddress: email,
+      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/sign-in`,
+      publicMetadata: { role: 'aprovador_cliente' },
+      notify: true,
+    })
+  } catch (err: unknown) {
+    const e = err as any
+    const code: string = e?.errors?.[0]?.code ?? ''
+    if (e?.status === 422 || code === 'duplicate_record' || code === 'form_identifier_exists') {
+      return { success: false, error: 'Este email já possui acesso ou convite pendente no sistema.' }
+    }
+    return { success: false, error: 'Erro ao enviar convite. Tente novamente.' }
+  }
+
+  const [inserido] = await db
+    .insert(usuarios)
+    .values({ clerkId: null, nome, email, funcao: 'aprovador_cliente', empresaId, clienteId })
+    .returning({ id: usuarios.id, nome: usuarios.nome, email: usuarios.email })
+
+  return { success: true, aprovador: inserido }
 }
 
 export async function criarObra(

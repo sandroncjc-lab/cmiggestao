@@ -16,6 +16,84 @@ const clienteSchema = z.object({
   endereco: z.string().optional(),
 })
 
+// ─── helpers internos ────────────────────────────────────────────────────────
+
+function traduzirErroClerk(err: unknown): string {
+  const e = err as any
+  const code: string = e?.errors?.[0]?.code ?? ''
+  const msg: string = e?.errors?.[0]?.message ?? ''
+
+  if (code === 'duplicate_record' || msg.includes('already')) {
+    return 'Este email já possui acesso ou convite pendente no sistema.'
+  }
+  if (e?.status === 422) {
+    return 'Este email já possui acesso ou convite pendente no sistema.'
+  }
+  if (code === 'form_identifier_exists') {
+    return 'Este email já possui uma conta cadastrada.'
+  }
+  return 'Erro ao enviar convite de acesso. Tente novamente.'
+}
+
+/**
+ * Envia convite Clerk e cria linha local em `usuarios` (clerkId = null).
+ * O webhook /api/webhooks/clerk preencherá o clerkId quando o convite for aceito.
+ * Idempotente: ignora silenciosamente se o email já tem acesso.
+ */
+async function convidarAprovador({
+  clienteId,
+  nome,
+  email,
+  empresaId,
+}: {
+  clienteId: string
+  nome: string
+  email: string
+  empresaId: string
+}): Promise<{ ok: boolean; error?: string }> {
+  // Já existe usuário com esse email? Não duplica.
+  const [existente] = await db
+    .select({ id: usuarios.id })
+    .from(usuarios)
+    .where(eq(usuarios.email, email))
+    .limit(1)
+  if (existente) return { ok: true }
+
+  const clerk = await clerkClient()
+
+  try {
+    await clerk.invitations.createInvitation({
+      emailAddress: email,
+      redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/sign-in`,
+      publicMetadata: { role: 'aprovador_cliente' },
+      notify: true,
+    })
+  } catch (err: unknown) {
+    const e = err as any
+    const code: string = e?.errors?.[0]?.code ?? ''
+    // Convite já existe ou email já tem conta → não é erro, apenas não duplica
+    if (e?.status === 422 || code === 'duplicate_record' || code === 'form_identifier_exists') {
+      // Linha local pode não existir ainda → cria sem clerkId para manter referência
+    } else {
+      return { ok: false, error: traduzirErroClerk(err) }
+    }
+  }
+
+  // Cria linha local; clerkId null será preenchido pelo webhook user.created
+  await db.insert(usuarios).values({
+    clerkId: null,
+    nome,
+    email,
+    funcao: 'aprovador_cliente',
+    empresaId,
+    clienteId,
+  })
+
+  return { ok: true }
+}
+
+// ─── mutations ───────────────────────────────────────────────────────────────
+
 export async function criarCliente(
   _prevState: unknown,
   formData: FormData,
@@ -37,7 +115,9 @@ export async function criarCliente(
 
     const { nome, documento, email, telefone, endereco } = parsed.data
 
+    const clienteId = crypto.randomUUID()
     await db.insert(clientes).values({
+      id: clienteId,
       nome,
       documento: documento || null,
       email: email || null,
@@ -45,6 +125,19 @@ export async function criarCliente(
       endereco: endereco || null,
       empresaId,
     })
+
+    // Convite automático se email foi fornecido
+    if (email) {
+      const convite = await convidarAprovador({ clienteId, nome, email, empresaId })
+      if (!convite.ok) {
+        // Cliente já foi salvo; avisa sobre o convite mas não falha o cadastro
+        revalidatePath('/clientes')
+        return {
+          success: true,
+          error: `Cliente salvo, mas não foi possível enviar o convite: ${convite.error}`,
+        }
+      }
+    }
 
     revalidatePath('/clientes')
     return { success: true }
@@ -64,7 +157,6 @@ export async function atualizarCliente(id: string, formData: FormData) {
     endereco: (formData.get('endereco') as string) || null,
     atualizadoEm: new Date(),
   }
-  // garante que o cliente pertence à empresa do usuário logado
   await db.update(clientes).set(data).where(
     and(eq(clientes.id, id), eq(clientes.empresaId, empresaId))
   )
@@ -74,79 +166,71 @@ export async function atualizarCliente(id: string, formData: FormData) {
 
 export async function excluirCliente(id: string) {
   const empresaId = await getEmpresaIdOuErro()
-  // garante que o cliente pertence à empresa do usuário logado
   await db.delete(clientes).where(
     and(eq(clientes.id, id), eq(clientes.empresaId, empresaId))
   )
   revalidatePath('/clientes')
 }
 
-export async function criarUsuarioAprovador(
-  _prevState: unknown,
-  formData: FormData,
+/**
+ * Reenvia o convite de acesso para o aprovador vinculado ao cliente.
+ * Substitui o fluxo antigo de "Criar Aprovador com senha".
+ */
+export async function reenviarConvite(
+  clienteId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const empresaId = await getEmpresaIdOuErro()
-    const clienteId = formData.get('clienteId') as string
-    const nome = formData.get('nome') as string
-    const email = formData.get('email') as string
-    const senha = formData.get('senha') as string
 
-    if (!nome || !email || !senha || !clienteId) {
-      return { success: false, error: 'Todos os campos são obrigatórios' }
-    }
-    if (senha.length < 8) {
-      return { success: false, error: 'A senha deve ter pelo menos 8 caracteres' }
-    }
-
-    // Garante que o clienteId pertence à empresa do usuário logado (isolamento multi-tenant)
-    const [clienteCheck] = await db
-      .select({ id: clientes.id })
+    // Verifica que o cliente pertence à empresa
+    const [clienteRow] = await db
+      .select({ id: clientes.id, nome: clientes.nome, email: clientes.email })
       .from(clientes)
       .where(and(eq(clientes.id, clienteId), eq(clientes.empresaId, empresaId)))
       .limit(1)
-    if (!clienteCheck) {
-      return { success: false, error: 'Cliente não encontrado' }
-    }
+    if (!clienteRow) return { success: false, error: 'Cliente não encontrado' }
+    if (!clienteRow.email) return { success: false, error: 'Este cliente não tem email cadastrado' }
 
     const clerk = await clerkClient()
 
-    // Cria usuário no Clerk primeiro; guarda o ID para rollback se o DB falhar
-    let clerkUserId: string | null = null
     try {
-      const clerkUser = await clerk.users.createUser({
-        emailAddress: [email],
-        password: senha,
-        firstName: nome,
+      await clerk.invitations.createInvitation({
+        emailAddress: clienteRow.email,
+        redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/sign-in`,
+        publicMetadata: { role: 'aprovador_cliente' },
+        notify: true,
       })
-      clerkUserId = clerkUser.id
+    } catch (err: unknown) {
+      const e = err as any
+      const code: string = e?.errors?.[0]?.code ?? ''
+      if (e?.status === 422 || code === 'duplicate_record' || code === 'form_identifier_exists') {
+        return { success: false, error: 'Este email já possui acesso ou convite pendente no sistema.' }
+      }
+      return { success: false, error: traduzirErroClerk(err) }
+    }
 
-      // Cria registro local vinculado ao cliente
+    // Garante que existe linha local para este email
+    const [jaExiste] = await db
+      .select({ id: usuarios.id })
+      .from(usuarios)
+      .where(eq(usuarios.email, clienteRow.email))
+      .limit(1)
+
+    if (!jaExiste) {
       await db.insert(usuarios).values({
-        clerkId: clerkUserId,
-        nome,
-        email,
+        clerkId: null,
+        nome: clienteRow.nome,
+        email: clienteRow.email,
         funcao: 'aprovador_cliente',
         empresaId,
         clienteId,
       })
-    } catch (innerErr) {
-      // Rollback: se o DB falhou mas o Clerk já criou o usuário, deletar para evitar órfão
-      if (clerkUserId) {
-        try {
-          await clerk.users.deleteUser(clerkUserId)
-        } catch {
-          // ignora erro de cleanup — o usuário órfão deverá ser removido manualmente
-          console.error('[rollback] falha ao deletar usuário órfão no Clerk:', clerkUserId)
-        }
-      }
-      throw innerErr // re-lança para o catch externo formatar a mensagem
     }
 
     revalidatePath(`/clientes/${clienteId}`)
     return { success: true }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Erro ao criar acesso de aprovação'
+    const msg = err instanceof Error ? err.message : 'Erro ao reenviar convite'
     return { success: false, error: msg }
   }
 }

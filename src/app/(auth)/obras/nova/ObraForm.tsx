@@ -61,10 +61,9 @@ export function ObraForm({
     const form = e.currentTarget
     const nome = (form.elements.namedItem('aprovNome') as HTMLInputElement).value
     const email = (form.elements.namedItem('aprovEmail') as HTMLInputElement).value
-    const senha = (form.elements.namedItem('aprovSenha') as HTMLInputElement).value
 
     startTransition(async () => {
-      const result = await criarAprovadorInline(clienteIdSelecionado, nome, email, senha)
+      const result = await criarAprovadorInline(clienteIdSelecionado, nome, email, '')
       if (result.success && result.aprovador) {
         const novo: Aprovador = { ...result.aprovador, clienteId: clienteIdSelecionado }
         setAprovadoresLocais((prev) => [...prev, novo])
@@ -240,10 +239,9 @@ export function ObraForm({
               <Label htmlFor="aprovEmail">Email</Label>
               <Input id="aprovEmail" name="aprovEmail" type="email" required placeholder="joao@cliente.com" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="aprovSenha">Senha (mínimo 8 caracteres)</Label>
-              <Input id="aprovSenha" name="aprovSenha" type="password" required minLength={8} placeholder="••••••••" />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              O aprovador receberá um convite por email para criar a própria senha de acesso.
+            </p>
             {dialogError && <p className="text-sm text-destructive">{dialogError}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
