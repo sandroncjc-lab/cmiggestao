@@ -17,25 +17,45 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
   const [, startTransition] = useTransition()
   const [error, setError] = useState('')
 
-  function startDraw(e: React.MouseEvent<HTMLCanvasElement>) {
+  function getPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current!
+    const rect = canvas.getBoundingClientRect()
+    // escala: canvas interno pode ser maior que o tamanho CSS
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY,
+      }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  function startDraw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+    e.preventDefault()
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     setDrawing(true)
-    const rect = canvas.getBoundingClientRect()
+    const { x, y } = getPos(e)
     ctx.beginPath()
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
+    ctx.moveTo(x, y)
   }
 
-  function draw(e: React.MouseEvent<HTMLCanvasElement>) {
+  function draw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+    e.preventDefault()
     if (!drawing) return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    const rect = canvas.getBoundingClientRect()
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top)
+    const { x, y } = getPos(e)
+    ctx.lineTo(x, y)
+    ctx.strokeStyle = '#000'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
     ctx.stroke()
   }
 
@@ -82,11 +102,14 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
             ref={canvasRef}
             width={400}
             height={120}
-            className="w-full rounded-md border border-border bg-white cursor-crosshair"
+            className="w-full rounded-md border border-border bg-white cursor-crosshair touch-none"
             onMouseDown={startDraw}
             onMouseMove={draw}
             onMouseUp={stopDraw}
             onMouseLeave={stopDraw}
+            onTouchStart={startDraw}
+            onTouchMove={draw}
+            onTouchEnd={stopDraw}
           />
           <Button variant="ghost" size="sm" className="mt-1" onClick={clearCanvas}>Limpar</Button>
         </div>

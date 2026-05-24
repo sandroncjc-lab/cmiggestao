@@ -1,13 +1,11 @@
 import { db } from '@/app/db'
-import { obras } from '@/app/db/schema'
+import { obras, clientes, usuarios } from '@/app/db/schema'
+import { eq, and } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
 import { RdoForm } from './rdo-form'
+import { getUsuarioAtual } from '@/lib/server/getUsuario'
 
 export default async function NovoRdoPage({
   searchParams,
@@ -15,7 +13,23 @@ export default async function NovoRdoPage({
   searchParams: Promise<{ obraId?: string }>
 }) {
   const { obraId } = await searchParams
-  const obrasList = await db.select().from(obras).orderBy(obras.nome)
+  const usuario = await getUsuarioAtual()
+
+  const obrasList = usuario
+    ? await db
+        .select({
+          id: obras.id,
+          nome: obras.nome,
+          aprovadorClienteId: obras.aprovadorClienteId,
+          aprovadorNome: usuarios.nome,
+          clienteNome: clientes.nome,
+        })
+        .from(obras)
+        .leftJoin(usuarios, eq(obras.aprovadorClienteId, usuarios.id))
+        .leftJoin(clientes, eq(obras.clienteId, clientes.id))
+        .where(eq(obras.empresaId, usuario.empresaId))
+        .orderBy(obras.nome)
+    : []
 
   return (
     <div className="max-w-3xl space-y-6">

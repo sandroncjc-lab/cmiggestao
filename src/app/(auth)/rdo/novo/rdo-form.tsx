@@ -9,10 +9,16 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, RotateCcw, Camera, X } from 'lucide-react'
+import { Plus, Trash2, RotateCcw, Camera, X, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { criarRdoCompleto } from '@/lib/actions/rdo'
 
-interface Obra { id: string; nome: string }
+interface Obra {
+  id: string
+  nome: string
+  aprovadorClienteId: string | null
+  aprovadorNome: string | null
+  clienteNome: string | null
+}
 interface Atividade { descricao: string; horaInicio: string; horaFim: string; observacoes: string }
 interface Funcionario { nome: string; funcao: string; horas: string }
 
@@ -25,6 +31,8 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
   const [obraId, setObraId] = useState(defaultObraId ?? '')
   const [data, setData] = useState(new Date().toISOString().split('T')[0])
   const [clima, setClima] = useState('ensolarado')
+
+  const obraSelecionada = obras.find((o) => o.id === obraId)
 
   // Step 2
   const [atividades, setAtividades] = useState<Atividade[]>([{ descricao: '', horaInicio: '', horaFim: '', observacoes: '' }])
@@ -156,6 +164,26 @@ export function RdoForm({ obras, defaultObraId }: { obras: Obra[]; defaultObraId
                 <option value="">Selecione a obra</option>
                 {obras.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
               </Select>
+              {obraSelecionada && (
+                obraSelecionada.aprovadorClienteId ? (
+                  <div className="flex items-center gap-2 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>
+                      Aprovador: <strong>{obraSelecionada.aprovadorNome}</strong>
+                      {obraSelecionada.clienteNome && ` (${obraSelecionada.clienteNome})`}
+                      {' '}— receberá notificação para assinar digitalmente
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-sm text-yellow-700 dark:text-yellow-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      Esta obra não tem aprovador vinculado. O RDO será salvo mas o cliente não conseguirá aprovar.{' '}
+                      <a href="/obras" className="underline font-medium">Configure o aprovador na obra</a> antes de criar o RDO.
+                    </span>
+                  </div>
+                )
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

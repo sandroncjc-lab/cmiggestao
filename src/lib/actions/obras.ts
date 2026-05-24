@@ -112,6 +112,22 @@ export async function atualizarStatusObra(
   revalidatePath(`/obras/${id}`)
 }
 
+export async function vincularAprovadorObra(
+  obraId: string,
+  aprovadorClienteId: string | null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const empresaId = await getEmpresaIdOuErro()
+    await verificarOwnershipObra(obraId, empresaId)
+    await db.update(obras).set({ aprovadorClienteId, atualizadoEm: new Date() }).where(eq(obras.id, obraId))
+    revalidatePath('/obras')
+    revalidatePath(`/obras/${obraId}`)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao vincular aprovador' }
+  }
+}
+
 export async function excluirObra(id: string) {
   const empresaId = await getEmpresaIdOuErro()
 
