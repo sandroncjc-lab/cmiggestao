@@ -1,58 +1,67 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import * as React from 'react'
+import { Dialog as RadixDialog } from 'radix-ui'
+import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-interface DialogProps {
+// Wrapper que aceita open + onClose (padrão usado no projeto)
+function Dialog({
+  open,
+  onClose,
+  children,
+}: {
   open: boolean
   onClose: () => void
   children: React.ReactNode
-  className?: string
-}
-
-export function Dialog({ open, onClose, children, className }: DialogProps) {
-  const ref = useRef<HTMLDialogElement>(null)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    if (open) el.showModal()
-    else el.close()
-  }, [open])
-
+}) {
   return (
-    <dialog
-      ref={ref}
-      onCancel={onClose}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      className={cn(
-        'rounded-lg border border-border bg-background p-0 shadow-xl backdrop:bg-black/50',
-        'open:flex open:flex-col',
-        'w-full max-w-lg',
-        className,
-      )}
-    >
-      {children}
-    </dialog>
+    <RadixDialog.Root open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <RadixDialog.Portal>
+        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <RadixDialog.Content
+          className={cn(
+            'fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%]',
+            'rounded-lg border bg-background shadow-lg',
+            'data-[state=open]:animate-in data-[state=closed]:animate-out',
+            'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+            'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          )}
+        >
+          {children}
+          <RadixDialog.Close
+            className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Fechar</span>
+          </RadixDialog.Close>
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   )
 }
 
-export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col gap-1.5 p-6 pb-0', className)} {...props} />
+const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col space-y-1.5 p-6 pb-0', className)} {...props} />
+)
+DialogHeader.displayName = 'DialogHeader'
+
+function DialogTitle({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLHeadingElement>) {
+  return (
+    <RadixDialog.Title className={cn('text-lg font-semibold leading-none tracking-tight', className)} {...props}>
+      {children}
+    </RadixDialog.Title>
+  )
 }
 
-export function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn('text-lg font-semibold', className)} {...props} />
-}
+const DialogContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('p-6', className)} {...props} />
+)
+DialogContent.displayName = 'DialogContent'
 
-export function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-sm text-muted-foreground', className)} {...props} />
-}
-
-export function DialogContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('p-6', className)} {...props} />
-}
-
-export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex justify-end gap-2 p-6 pt-0', className)} {...props} />
-}
+export { Dialog, DialogHeader, DialogTitle, DialogContent }

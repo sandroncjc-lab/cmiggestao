@@ -2,11 +2,54 @@
 'use server'
 
 import { db } from '@/app/db'
-import { obras, obrasEnderecos } from '@/app/db/schema'
+import { obras, obrasEnderecos, usuarios } from '@/app/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
 import { verificarOwnershipObra } from '@/lib/auth/ownership'
+import { clerkClient } from '@clerk/nextjs/server'
+
+export async function criarAprovadorInline(
+  clienteId: string,
+  nome: string,
+  email: string,
+  senha: string,
+): Promise<{ success: boolean; aprovador?: { id: string; nome: string; email: string }; error?: string }> {
+  try {
+    const empresaId = await getEmpresaIdOuErro()
+
+    if (!nome || !email || !senha || !clienteId) {
+      return { success: false, error: 'Todos os campos são obrigatórios' }
+    }
+    if (senha.length < 8) {
+      return { success: false, error: 'A senha deve ter pelo menos 8 caracteres' }
+    }
+
+    const clerk = await clerkClient()
+    const clerkUser = await clerk.users.createUser({
+      emailAddress: [email],
+      password: senha,
+      firstName: nome,
+    })
+
+    const [inserido] = await db
+      .insert(usuarios)
+      .values({
+        clerkId: clerkUser.id,
+        nome,
+        email,
+        funcao: 'aprovador_cliente',
+        empresaId,
+        clienteId,
+      })
+      .returning({ id: usuarios.id, nome: usuarios.nome, email: usuarios.email })
+
+    return { success: true, aprovador: inserido }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro ao criar aprovador'
+    return { success: false, error: msg }
+  }
+}
 
 export async function criarObra(
   _prevState: unknown,
