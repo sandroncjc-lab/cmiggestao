@@ -1,12 +1,12 @@
 import { db } from '@/app/db'
-import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras, clientes, usuarios } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
+import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras } from '@/app/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, CheckCircle, XCircle, Send } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { RdoAcoesCliente } from './rdo-acoes-cliente'
 import { RdoAcoesInterno } from './rdo-acoes-interno'
@@ -25,18 +25,36 @@ const climaLabel: Record<string, string> = {
   tempestade: '⛈️ Tempestade',
 }
 
+async function carregarRdo(id: string, usuario: NonNullable<Awaited<ReturnType<typeof getUsuarioAtual>>>) {
+  if (isCliente(usuario.funcao) && usuario.clienteId) {
+    const [row] = await db
+      .select()
+      .from(rdo)
+      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.clienteId, usuario.clienteId)))
+      .where(eq(rdo.id, id))
+      .limit(1)
+    return row ? row.rdo : null
+  }
+  const [row] = await db
+    .select()
+    .from(rdo)
+    .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.empresaId, usuario.empresaId)))
+    .where(eq(rdo.id, id))
+    .limit(1)
+  return row ? row.rdo : null
+}
+
 export default async function RdoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [usuario] = await Promise.all([getUsuarioAtual()])
+  const usuario = await getUsuarioAtual()
+  if (!usuario) notFound()
 
-  const [rdoData] = await db.select().from(rdo).where(eq(rdo.id, id)).limit(1)
+  const rdoData = await carregarRdo(id, usuario)
   if (!rdoData) notFound()
 
   const [obraData] = await db
     .select({ nome: obras.nome, clienteId: obras.clienteId, aprovadorClienteId: obras.aprovadorClienteId })
-    .from(obras)
-    .where(eq(obras.id, rdoData.obraId))
-    .limit(1)
+    .from(obras).where(eq(obras.id, rdoData.obraId)).limit(1)
 
   const [atividades, funcionarios, fotos, rdoServsList] = await Promise.all([
     db.select().from(rdoAtividades).where(eq(rdoAtividades.rdoId, id)),
@@ -49,7 +67,7 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
       .where(eq(rdoServicos.rdoId, id)),
   ])
 
-  const clienteVendo = usuario ? isCliente(usuario.funcao) : false
+  const clienteVendo = isCliente(usuario.funcao)
   const podeAprovar = clienteVendo && rdoData.status === 'pendente_aprovacao'
   const podeEnviar = !clienteVendo && rdoData.status === 'rascunho'
 

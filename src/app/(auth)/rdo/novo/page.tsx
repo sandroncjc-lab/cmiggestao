@@ -1,5 +1,5 @@
 import { db } from '@/app/db'
-import { obras, clientes, usuarios } from '@/app/db/schema'
+import { obras, clientes, usuarios, servicos } from '@/app/db/schema'
 import { eq, and } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,26 @@ export default async function NovoRdoPage({
         .orderBy(obras.nome)
     : []
 
+  // Carrega serviços de todas as obras da empresa, agrupados por obraId
+  const servicosList = usuario
+    ? await db
+        .select({
+          id: servicos.id,
+          nome: servicos.nome,
+          unidade: servicos.unidade,
+          obraId: servicos.obraId,
+        })
+        .from(servicos)
+        .innerJoin(obras, and(eq(servicos.obraId, obras.id), eq(obras.empresaId, usuario.empresaId)))
+        .orderBy(servicos.nome)
+    : []
+
+  const servicosPorObra = servicosList.reduce<Record<string, typeof servicosList>>((acc, s) => {
+    if (!acc[s.obraId]) acc[s.obraId] = []
+    acc[s.obraId].push(s)
+    return acc
+  }, {})
+
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center gap-4">
@@ -42,7 +62,7 @@ export default async function NovoRdoPage({
           <p className="text-muted-foreground">Relatório Diário de Obras</p>
         </div>
       </div>
-      <RdoForm obras={obrasList} defaultObraId={obraId} />
+      <RdoForm obras={obrasList} servicosPorObra={servicosPorObra} defaultObraId={obraId} />
     </div>
   )
 }

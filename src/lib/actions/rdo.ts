@@ -9,14 +9,11 @@ import { verificarOwnershipObra } from '@/lib/auth/ownership'
 
 // ─── helpers internos ────────────────────────────────────────────────────────
 
-/**
- * Verifica que o RDO pertence à empresa do usuário (usuários internos)
- * ou ao cliente do usuário (aprovador_cliente).
- * Lança erro se o acesso for negado.
- */
-async function verificarOwnershipRdo(rdoId: string, usuario: { id: string; empresaId: string; funcao: string; clienteId: string | null }) {
+async function verificarOwnershipRdo(
+  rdoId: string,
+  usuario: { id: string; empresaId: string; funcao: string; clienteId: string | null },
+) {
   if (isCliente(usuario.funcao)) {
-    // aprovador_cliente: RDO deve ser de uma obra do seu cliente
     if (!usuario.clienteId) throw new Error('Acesso negado')
     const [row] = await db
       .select({ id: rdo.id })
@@ -27,7 +24,6 @@ async function verificarOwnershipRdo(rdoId: string, usuario: { id: string; empre
     if (!row) throw new Error('Acesso negado: RDO não pertence ao seu cliente')
     return row
   }
-  // usuário interno: RDO deve ser de uma obra da sua empresa
   const [row] = await db
     .select({ id: rdo.id })
     .from(rdo)
@@ -45,7 +41,6 @@ export async function listarRdos() {
   if (!usuario) return []
 
   if (isCliente(usuario.funcao) && usuario.clienteId) {
-    // aprovador_cliente: apenas obras do seu cliente
     const obrasDoCliente = await db
       .select({ id: obras.id })
       .from(obras)
@@ -60,7 +55,6 @@ export async function listarRdos() {
       .orderBy(rdo.data)
   }
 
-  // usuários internos: filtrar pela empresa — impede cross-tenant
   return db
     .select({ id: rdo.id, data: rdo.data, status: rdo.status, clima: rdo.clima, obraId: rdo.obraId, obraNome: obras.nome })
     .from(rdo)
@@ -76,22 +70,23 @@ export async function criarRdoCompleto(dados: {
   clima: 'ensolarado' | 'nublado' | 'chuvoso' | 'tempestade'
   atividades: { descricao: string; horaInicio?: string; horaFim?: string; observacoes?: string }[]
   funcionarios: { nome: string; funcao?: string; horas: string }[]
+  servicos: { servicoId: string; quantidade: number; observacoes?: string }[]
   fotos: string[]
-  assinaturaInterna: string
+  assinaturaInterna: string | null   // null = salvar como rascunho
 }): Promise<{ success: boolean; error?: string; rdoId?: string }> {
   try {
     const usuario = await getUsuarioOuErro()
-    const { obraId, data, clima, atividades, funcionarios, fotos, assinaturaInterna } = dados
+    const { obraId, data, clima, atividades, funcionarios, servicos, fotos, assinaturaInterna } = dados
 
     if (!obraId) return { success: false, error: 'Campo Obra é obrigatório' }
-    if (!data) return { success: false, error: 'Campo Data é obrigatório' }
-    if (!clima) return { success: false, error: 'Campo Clima é obrigatório' }
+    if (!data)   return { success: false, error: 'Campo Data é obrigatório' }
+    if (!clima)  return { success: false, error: 'Campo Clima é obrigatório' }
 
-    // verifica que a obra pertence à empresa do usuário
     await verificarOwnershipObra(obraId, usuario.empresaId)
 
     const rdoId = crypto.randomUUID()
 
+    // Insere o RDO — status inicial sempre rascunho
     await db.insert(rdo).values({
       id: rdoId,
       obraId,
@@ -102,31 +97,41 @@ export async function criarRdoCompleto(dados: {
       assinaturaInterna: assinaturaInterna || null,
     })
 
-    if (atividades.length > 0) {
-      const rows = atividades.filter((a) => a.descricao.trim())
-      if (rows.length > 0) {
-        await db.insert(rdoAtividades).values(rows.map((a) => ({
-          rdoId,
-          descricao: a.descricao,
-          horaInicio: a.horaInicio || null,
-          horaFim: a.horaFim || null,
-          observacoes: a.observacoes || null,
-        })))
-      }
+    // Atividades
+    const atividadesValidas = atividades.filter((a) => a.descricao.trim())
+    if (atividadesValidas.length > 0) {
+      await db.insert(rdoAtividades).values(atividadesValidas.map((a) => ({
+        rdoId,
+        descricao: a.descricao.trim(),
+        horaInicio: a.horaInicio || null,
+        horaFim: a.horaFim || null,
+        observacoes: a.observacoes?.trim() || null,
+      })))
     }
 
-    if (funcionarios.length > 0) {
-      const rows = funcionarios.filter((f) => f.nome.trim())
-      if (rows.length > 0) {
-        await db.insert(rdoFuncionarios).values(rows.map((f) => ({
-          rdoId,
-          nomeFuncionario: f.nome,
-          funcao: f.funcao || null,
-          horasTrabalhadas: f.horas || '0',
-        })))
-      }
+    // Funcionários
+    const funcionariosValidos = funcionarios.filter((f) => f.nome.trim())
+    if (funcionariosValidos.length > 0) {
+      await db.insert(rdoFuncionarios).values(funcionariosValidos.map((f) => ({
+        rdoId,
+        nomeFuncionario: f.nome.trim(),
+        funcao: f.funcao?.trim() || null,
+        horasTrabalhadas: f.horas || '0',
+      })))
     }
 
+    // Serviços executados
+    const servicosValidos = servicos.filter((s) => s.servicoId && s.quantidade > 0)
+    if (servicosValidos.length > 0) {
+      await db.insert(rdoServicos).values(servicosValidos.map((s) => ({
+        rdoId,
+        servicoId: s.servicoId,
+        quantidadeExecutada: String(s.quantidade),
+        observacoes: s.observacoes?.trim() || null,
+      })))
+    }
+
+    // Fotos
     if (fotos.length > 0) {
       await db.insert(rdoFotos).values(fotos.map((url) => ({
         rdoId,
@@ -136,8 +141,12 @@ export async function criarRdoCompleto(dados: {
       })))
     }
 
+    // Se há assinatura interna, move para pendente_aprovacao e notifica o aprovador
     if (assinaturaInterna) {
-      await db.update(rdo).set({ status: 'pendente_aprovacao', atualizadoEm: new Date() }).where(eq(rdo.id, rdoId))
+      await db
+        .update(rdo)
+        .set({ status: 'pendente_aprovacao', atualizadoEm: new Date() })
+        .where(eq(rdo.id, rdoId))
 
       const [obraData] = await db
         .select({ aprovadorClienteId: obras.aprovadorClienteId, nome: obras.nome })
@@ -167,24 +176,20 @@ export async function criarRdoCompleto(dados: {
 
 export async function adicionarFotosRdo(rdoId: string, urls: string[], legenda?: string) {
   const usuario = await getUsuarioOuErro()
-  // verifica ownership antes de inserir
   await verificarOwnershipRdo(rdoId, usuario)
 
-  await db.insert(rdoFotos).values(
-    urls.map((url) => ({
-      rdoId,
-      url,
-      legenda: legenda ?? null,
-      enviadoPorId: usuario.id,
-      tiradaEm: new Date(),
-    }))
-  )
+  await db.insert(rdoFotos).values(urls.map((url) => ({
+    rdoId,
+    url,
+    legenda: legenda ?? null,
+    enviadoPorId: usuario.id,
+    tiradaEm: new Date(),
+  })))
   revalidatePath(`/rdo/${rdoId}`)
 }
 
 export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: string) {
   const usuario = await getUsuarioOuErro()
-  // apenas usuários internos podem enviar para aprovação
   if (isCliente(usuario.funcao)) throw new Error('Acesso negado')
   await verificarOwnershipRdo(id, usuario)
 
@@ -194,24 +199,19 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
     atualizadoEm: new Date(),
   }).where(eq(rdo.id, id))
 
-  const [rdoData] = await db
-    .select({ obraId: rdo.obraId, data: rdo.data })
-    .from(rdo)
-    .where(eq(rdo.id, id))
-    .limit(1)
-
-  if (rdoData) {
+  const [rdoRow] = await db.select({ obraId: rdo.obraId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
+  if (rdoRow) {
     const [obraData] = await db
       .select({ aprovadorClienteId: obras.aprovadorClienteId, nome: obras.nome })
       .from(obras)
-      .where(eq(obras.id, rdoData.obraId))
+      .where(eq(obras.id, rdoRow.obraId))
       .limit(1)
 
     if (obraData?.aprovadorClienteId) {
       await db.insert(notificacoes).values({
         usuarioId: obraData.aprovadorClienteId,
         titulo: 'RDO aguardando sua aprovação',
-        mensagem: `Um novo RDO da obra "${obraData.nome}" de ${rdoData.data} foi enviado para sua aprovação.`,
+        mensagem: `Um novo RDO da obra "${obraData.nome}" de ${rdoRow.data} foi enviado para sua aprovação.`,
         tipo: 'rdo_pendente',
         referenciaId: id,
         tabelaReferencia: 'rdo',
@@ -225,9 +225,7 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
 
 export async function aprovarRdo(id: string, assinaturaCliente: string) {
   const usuario = await getUsuarioOuErro()
-  // apenas aprovador_cliente pode aprovar
   if (!isCliente(usuario.funcao)) throw new Error('Acesso negado: somente o aprovador do cliente pode aprovar')
-  // verifica que o RDO pertence ao seu cliente
   await verificarOwnershipRdo(id, usuario)
 
   await db.update(rdo).set({
@@ -238,12 +236,12 @@ export async function aprovarRdo(id: string, assinaturaCliente: string) {
     atualizadoEm: new Date(),
   }).where(eq(rdo.id, id))
 
-  const [rdoData] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
-  if (rdoData) {
+  const [rdoRow] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
+  if (rdoRow) {
     await db.insert(notificacoes).values({
-      usuarioId: rdoData.criadoPorId,
+      usuarioId: rdoRow.criadoPorId,
       titulo: 'RDO Aprovado',
-      mensagem: `Seu RDO de ${rdoData.data} foi aprovado.`,
+      mensagem: `Seu RDO de ${rdoRow.data} foi aprovado.`,
       tipo: 'rdo_aprovado',
       referenciaId: id,
       tabelaReferencia: 'rdo',
@@ -255,11 +253,10 @@ export async function aprovarRdo(id: string, assinaturaCliente: string) {
 
 export async function rejeitarRdo(id: string, motivoRejeicao: string) {
   const usuario = await getUsuarioOuErro()
-  // apenas aprovador_cliente pode rejeitar
   if (!isCliente(usuario.funcao)) throw new Error('Acesso negado: somente o aprovador do cliente pode rejeitar')
   await verificarOwnershipRdo(id, usuario)
 
-  const [rdoData] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
+  const [rdoRow] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
 
   await db.update(rdo).set({
     status: 'rejeitado',
@@ -267,11 +264,11 @@ export async function rejeitarRdo(id: string, motivoRejeicao: string) {
     atualizadoEm: new Date(),
   }).where(eq(rdo.id, id))
 
-  if (rdoData) {
+  if (rdoRow) {
     await db.insert(notificacoes).values({
-      usuarioId: rdoData.criadoPorId,
+      usuarioId: rdoRow.criadoPorId,
       titulo: 'RDO Rejeitado',
-      mensagem: `Seu RDO de ${rdoData.data} foi rejeitado. Motivo: ${motivoRejeicao}`,
+      mensagem: `Seu RDO de ${rdoRow.data} foi rejeitado. Motivo: ${motivoRejeicao}`,
       tipo: 'rdo_rejeitado',
       referenciaId: id,
       tabelaReferencia: 'rdo',
