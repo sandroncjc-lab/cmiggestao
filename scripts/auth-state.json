@@ -1,0 +1,105 @@
+{
+  "cookies": [
+    {
+      "name": "__cf_bm",
+      "value": "Oi_P3_meQI6iXIn6NsxyUd_ZPvjtjpiD_yC_MgxaTHU-1779719217-1.0.1.1-irVkf_6y_qVUxufXpa6lTAyMYrysFy8_ntrgT5o1rHpnhTzSP18zLJmptH0K83LN96IXPrTqPnJWwy2BzvpLwmSJLuc8FNMAQPgmrQNCcY8",
+      "domain": ".legible-cricket-40.clerk.accounts.dev",
+      "path": "/",
+      "expires": 1779721017.014761,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_cfuvid",
+      "value": "HseYyFN6BKzIbt5iobaXLL5R00wHnrlmQUsJm0jxKr8-1779719217918-0.0.1.1-604800000",
+      "domain": ".legible-cricket-40.clerk.accounts.dev",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__cf_bm",
+      "value": "HQk_TKEUQUGpKS87I7ZVrKHPN4SWLS9dYY0JTa3DF80-1779719221.0768654-1.0.1.1-rTPvciuEFJJd1mkwgxo38jP9rfnaKF2rOKxuhFKgp7VYVXfyZGJNQaBm6QOgCf68CkRPXe.MPyXuJou57oG8WZ_.WRdf6bogq.vTBdghtjq9p2zhWAxttO5xFl9E9Qje",
+      "domain": ".img.clerk.com",
+      "path": "/",
+      "expires": 1779721020.189096,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__clerk_db_jwt_Hd7ziomE",
+      "value": "dvb_3EDhnsr6ODGr6u7MM1w0CHldvfT",
+      "domain": "cmiggestao.vercel.app",
+      "path": "/",
+      "expires": 1811255272,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__clerk_db_jwt",
+      "value": "dvb_3EDhnsr6ODGr6u7MM1w0CHldvfT",
+      "domain": "cmiggestao.vercel.app",
+      "path": "/",
+      "expires": 1811255272,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__session",
+      "value": "eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zREFoV1pYc2NrSW1FRUZyWkprZk5ScHBBRUUiLCJvaWF0IjoxNzc5NzE5MjczLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL2NtaWdnZXN0YW8udmVyY2VsLmFwcCIsImV4cCI6MTc3OTcxOTMzMywiZnZhIjpbMCwtMV0sImlhdCI6MTc3OTcxOTI3MywiaXNzIjoiaHR0cHM6Ly9sZWdpYmxlLWNyaWNrZXQtNDAuY2xlcmsuYWNjb3VudHMuZGV2IiwibmJmIjoxNzc5NzE5MjYzLCJzaWQiOiJzZXNzXzNFRGh1ZXdpUDBLOVdEcHdOOEJDQjBFcEx1ciIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfM0RWVjlWOWd5OWFiNHI5dGk1SWF3ZENhalVJIiwidiI6Mn0.C61XHx4AqUfpJpJIAI7Ax9T332XVjsau61Di_jz5wqGZQFx2PLOVEiVzQ3umyuzVRAodq_BDV2VqtIiXPqiK8ivTeaZvLkJt_dInHl69uRGGezuwmtDHMhlTSek-QHPildnZ1bkL49ZZPt2bHNNBp53zqJHkKEvVTpwo7tH706oTxqwbTe2YWfYvWwcHlkjV4P79NcVLgry7-58Ga_GUrjav7weR4GaRoOrrdhg3l6Pr1-TmtmqR7q2k6U2NnDLCol2cqWidmvI9PZCZq75FoslkqfIquFwSuJq6zGc0ScfAEx1hnlmk0vdUJshRi6X2-3eoqe12wdxQF9oh4eZ0Iw",
+      "domain": "cmiggestao.vercel.app",
+      "path": "/",
+      "expires": 1811255272,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__session_Hd7ziomE",
+      "value": "eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zREFoV1pYc2NrSW1FRUZyWkprZk5ScHBBRUUiLCJvaWF0IjoxNzc5NzE5MjczLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL2NtaWdnZXN0YW8udmVyY2VsLmFwcCIsImV4cCI6MTc3OTcxOTMzMywiZnZhIjpbMCwtMV0sImlhdCI6MTc3OTcxOTI3MywiaXNzIjoiaHR0cHM6Ly9sZWdpYmxlLWNyaWNrZXQtNDAuY2xlcmsuYWNjb3VudHMuZGV2IiwibmJmIjoxNzc5NzE5MjYzLCJzaWQiOiJzZXNzXzNFRGh1ZXdpUDBLOVdEcHdOOEJDQjBFcEx1ciIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfM0RWVjlWOWd5OWFiNHI5dGk1SWF3ZENhalVJIiwidiI6Mn0.C61XHx4AqUfpJpJIAI7Ax9T332XVjsau61Di_jz5wqGZQFx2PLOVEiVzQ3umyuzVRAodq_BDV2VqtIiXPqiK8ivTeaZvLkJt_dInHl69uRGGezuwmtDHMhlTSek-QHPildnZ1bkL49ZZPt2bHNNBp53zqJHkKEvVTpwo7tH706oTxqwbTe2YWfYvWwcHlkjV4P79NcVLgry7-58Ga_GUrjav7weR4GaRoOrrdhg3l6Pr1-TmtmqR7q2k6U2NnDLCol2cqWidmvI9PZCZq75FoslkqfIquFwSuJq6zGc0ScfAEx1hnlmk0vdUJshRi6X2-3eoqe12wdxQF9oh4eZ0Iw",
+      "domain": "cmiggestao.vercel.app",
+      "path": "/",
+      "expires": 1811255272,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__client_uat_Hd7ziomE",
+      "value": "1779719271",
+      "domain": ".cmiggestao.vercel.app",
+      "path": "/",
+      "expires": 1811255272,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "__client_uat",
+      "value": "1779719271",
+      "domain": ".cmiggestao.vercel.app",
+      "path": "/",
+      "expires": 1811255272,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://cmiggestao.vercel.app",
+      "localStorage": [
+        {
+          "name": "__clerk_environment",
+          "value": "{\"value\":{\"object\":\"environment\",\"auth_config\":{\"claimed_at\":null,\"id\":\"\",\"object\":\"auth_config\",\"reverification\":true,\"single_session_mode\":true,\"session_minter\":false},\"display_config\":{\"object\":\"display_config\",\"after_create_organization_url\":\"https://cmiggestao.vercel.app\",\"after_join_waitlist_url\":\"https://cmiggestao.vercel.app\",\"after_leave_organization_url\":\"https://cmiggestao.vercel.app\",\"after_sign_in_url\":\"https://cmiggestao.vercel.app\",\"after_sign_out_all_url\":\"https://legible-cricket-40.accounts.dev/sign-in\",\"after_sign_out_one_url\":\"https://legible-cricket-40.accounts.dev/sign-in/choose\",\"after_sign_up_url\":\"https://cmiggestao.vercel.app\",\"after_switch_session_url\":\"https://cmiggestao.vercel.app\",\"application_name\":\"cmig gestao\",\"branded\":true,\"captcha_heartbeat\":false,\"captcha_oauth_bypass\":[],\"captcha_provider\":\"turnstile\",\"captcha_public_key_invisible\":\"0x4AAAAAAAFV93qQdS0ycilX\",\"captcha_public_key\":\"0x4AAAAAAAWXJGBD7bONzLBd\",\"captcha_widget_type\":\"smart\",\"clerk_js_version\":\"6\",\"create_organization_url\":\"https://legible-cricket-40.accounts.dev/create-organization\",\"favicon_image_url\":\"\",\"home_url\":\"https://cmiggestao.vercel.app\",\"id\":\"display_config_3DAhWbMPp7x3BhkEeULnvfuZ0VU\",\"instance_environment_type\":\"development\",\"logo_image_url\":\"\",\"organization_profile_url\":\"https://legible-cricket-40.accounts.dev/organization\",\"preferred_sign_in_strategy\":\"password\",\"privacy_policy_url\":\"\",\"show_devmode_warning\":true,\"sign_in_url\":\"https://legible-cricket-40.accounts.dev/sign-in\",\"sign_up_url\":\"https://legible-cricket-40.accounts.dev/sign-up\",\"support_email\":\"\",\"terms_url\":\"\",\"theme\":{\"buttons\":{\"font_color\":\"#ffffff\",\"font_family\":\"\\\"Source Sans Pro\\\", sans-serif\",\"font_weight\":\"600\"},\"general\":{\"color\":\"#6c47ff\",\"padding\":\"1em\",\"box_shadow\":\"0 2px 8px rgba(0, 0, 0, 0.2)\",\"font_color\":\"#151515\",\"font_family\":\"\\\"Source Sans Pro\\\", sans-serif\",\"border_radius\":\"0.5em\",\"background_color\":\"#ffffff\",\"label_font_weight\":\"600\"},\"accounts\":{\"background_color\":\"#ffffff\"}},\"user_profile_url\":\"https://legible-cricket-40.accounts.dev/user\",\"waitlist_url\":\"https://legible-cricket-40.accounts.dev/waitlist\"},\"id\":\"\",\"maintenance_mode\":false,\"client_debug_mode\":false,\"partitioned_cookies\":false,\"organization_settings\":{\"actions\":{\"admin_delete\":true},\"domains\":{\"enabled\":false,\"enrollment_modes\":[],\"default_role\":\"\"},\"enabled\":false,\"max_allowed_memberships\":5},\"user_settings\":{\"actions\":{\"delete_self\":true,\"create_organization\":true,\"create_organizations_limit\":null},\"attributes\":{\"email_address\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":true,\"first_factors\":[\"email_code\"],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[\"email_code\"],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"email_address\"},\"phone_number\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"phone_number\"},\"username\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"username\"},\"web3_wallet\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"web3_wallet\"},\"first_name\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"first_name\"},\"last_name\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"last_name\"},\"password\":{\"enabled\":true,\"required\":true,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"password\"},\"authenticator_app\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"authenticator_app\"},\"ticket\":{\"enabled\":true,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"ticket\"},\"backup_code\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"backup_code\"},\"passkey\":{\"enabled\":false,\"required\":false,\"used_for_first_factor\":false,\"first_factors\":[],\"used_for_second_factor\":false,\"second_factors\":[],\"verifications\":[],\"verify_at_sign_up\":false,\"immutable\":false,\"name\":\"passkey\"}},\"passkey_settings\":{\"allow_autofill\":true,\"show_sign_in_button\":true},\"password_settings\":{\"disable_hibp\":false,\"min_length\":8,\"max_length\":72,\"require_special_char\":false,\"require_numbers\":false,\"require_uppercase\":false,\"require_lowercase\":false,\"show_zxcvbn\":false,\"min_zxcvbn_strength\":0,\"enforce_hibp_on_sign_in\":true,\"allowed_special_characters\":\"!\\\"#$%&'()*+,-./:;<=>?@[]^_`{|}~\"},\"sign_in\":{\"second_factor\":{\"required\":false}},\"sign_up\":{\"captcha_enabled\":true,\"captcha_widget_type\":\"smart\",\"custom_action_required\":false,\"progressive\":true,\"mode\":\"public\",\"legal_consent_enabled\":false,\"mfa\":{\"required\":false}},\"social\":{\"oauth_google\":{\"enabled\":true,\"required\":false,\"authenticatable\":true,\"block_email_subaddresses\":true,\"strategy\":\"oauth_google\",\"not_selectable\":false,\"deprecated\":false,\"name\":\"Google\",\"logo_url\":\"https://img.clerk.com/static/google.png\"}}},\"commerce_settings\":{\"billing\":{\"stripe_publishable_key\":null,\"organization\":{\"enabled\":false,\"has_paid_plans\":false},\"user\":{\"enabled\":false,\"has_paid_plans\":false}}},\"api_keys_settings\":{\"user_api_keys_enabled\":false,\"orgs_api_keys_enabled\":false},\"protect_config\":{\"object\":\"protect_config\",\"id\":\"\"}},\"exp\":1779805619596}"
+        }
+      ]
+    }
+  ]
+}

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileDown } from 'lucide-react'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { RdoAcoesCliente } from './rdo-acoes-cliente'
 import { RdoAcoesInterno } from './rdo-acoes-interno'
@@ -85,7 +85,14 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
             <p className="text-muted-foreground">{obraData?.nome ?? '—'}</p>
           </div>
         </div>
-        <Badge variant={cfg.variant as any} className="text-sm px-3 py-1">{cfg.label}</Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant={cfg.variant as any} className="text-sm px-3 py-1">{cfg.label}</Badge>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/rdo/${id}/pdf`} download>
+              <FileDown className="h-4 w-4 mr-2" />PDF
+            </a>
+          </Button>
+        </div>
       </div>
 
       {rdoData.motivoRejeicao && (

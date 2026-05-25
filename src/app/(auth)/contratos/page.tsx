@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent } from '@/components/ui/card'
-import { Plus } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
   rascunho: { label: 'Rascunho', variant: 'secondary' },
@@ -109,9 +109,13 @@ export default async function ContratosPage() {
                       {c.dataInicio} → {c.dataFim ?? '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/contratos/${c.id}`}>Ver</Link>
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={`/contratos/${c.id}/editar`}>
+                            <Pencil className="h-3.5 w-3.5 mr-1" />Editar
+                          </Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
