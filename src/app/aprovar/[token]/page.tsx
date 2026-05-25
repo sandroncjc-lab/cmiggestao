@@ -2,6 +2,7 @@ import { carregarRdoPorToken } from '@/lib/actions/rdo'
 import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { FileDown } from 'lucide-react'
 import { AprovarForm } from './aprovar-form'
 
 const climaLabel: Record<string, string> = {
@@ -111,6 +112,16 @@ export default async function AprovarRdoPage({ params }: { params: Promise<{ tok
             </CardContent>
           </Card>
         )}
+
+        {/* Download PDF */}
+        <a
+          href={`/api/rdo/${rdoRow.id}/pdf`}
+          download
+          className="flex items-center justify-center gap-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <FileDown className="h-4 w-4" />
+          Baixar RDO em PDF
+        </a>
 
         {/* Formulário de aprovação/rejeição */}
         <AprovarForm token={token} />

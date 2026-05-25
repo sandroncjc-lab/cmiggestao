@@ -9,6 +9,7 @@ import { RdoPdf } from './rdo-pdf'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 30 // Vercel: até 30s para gerar PDF
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -47,9 +48,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .then((r) => r[0] ?? { nome: '—', clienteNome: null }),
 
     db.select().from(rdoAtividades).where(eq(rdoAtividades.rdoId, id)),
-
     db.select().from(rdoFuncionarios).where(eq(rdoFuncionarios.rdoId, id)),
-
     db.select().from(rdoFotos).where(eq(rdoFotos.rdoId, id)),
 
     db
@@ -78,16 +77,29 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     fotos: fotosData,
   }) as any
 
-  const pdfBuffer = await renderToBuffer(element)
-  const uint8 = new Uint8Array(pdfBuffer)
+  // Gera o PDF — externalizado via serverExternalPackages para evitar bundling
+  let pdfBuffer: Buffer
+  try {
+    pdfBuffer = await renderToBuffer(element)
+  } catch (err) {
+    console.error('[PDF] renderToBuffer falhou:', err)
+    return new NextResponse(
+      JSON.stringify({ error: 'Falha ao gerar PDF', detail: String(err) }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
 
-  const filename = `RDO_${obraData.nome.replace(/\s+/g, '_')}_${rdoRow.data}.pdf`
+  // Nome do arquivo seguro para download
+  const nomeObra = obraData.nome.replace(/[^a-zA-Z0-9À-ÿ\s_-]/g, '').replace(/\s+/g, '_')
+  const filename = `RDO_${nomeObra}_${rdoRow.data}.pdf`
 
-  return new NextResponse(uint8, {
+  return new NextResponse(pdfBuffer, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': String(uint8.length),
+      // RFC 5987: suporta caracteres UTF-8 no nome do arquivo
+      'Content-Disposition': `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      'Content-Length': String(pdfBuffer.length),
+      'Cache-Control': 'no-store',
     },
   })
 }
