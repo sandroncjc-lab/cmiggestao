@@ -93,7 +93,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const nomeObra = obraData.nome.replace(/[^a-zA-Z0-9À-ÿ\s_-]/g, '').replace(/\s+/g, '_')
   const filename = `RDO_${nomeObra}_${rdoRow.data}.pdf`
 
-  return new NextResponse(pdfBuffer, {
+  return new NextResponse(new Uint8Array(pdfBuffer), {
     headers: {
       'Content-Type': 'application/pdf',
       // RFC 5987: suporta caracteres UTF-8 no nome do arquivo

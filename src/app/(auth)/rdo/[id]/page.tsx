@@ -1,16 +1,24 @@
 import { db } from '@/app/db'
-import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras } from '@/app/db/schema'
+import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras, clientes, empresas, usuarios } from '@/app/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, FileDown } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { RdoAcoesCliente } from './rdo-acoes-cliente'
 import { RdoAcoesInterno } from './rdo-acoes-interno'
 import { LinkAprovacao } from './link-aprovacao'
+import type { RdoPdfData } from './pdf-download-button'
+
+// Carrega o botão PDF apenas no cliente (evita bundling server-side do react-pdf)
+const PdfDownloadButton = dynamic(
+  () => import('./pdf-download-button').then((m) => m.PdfDownloadButton),
+  { ssr: false, loading: () => <Button variant="outline" size="sm" disabled>PDF…</Button> }
+)
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
   rascunho: { label: 'Rascunho', variant: 'secondary' },
@@ -58,7 +66,7 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
     .select({ nome: obras.nome, clienteId: obras.clienteId, aprovadorClienteId: obras.aprovadorClienteId })
     .from(obras).where(eq(obras.id, rdoData.obraId)).limit(1)
 
-  const [atividades, funcionarios, fotos, rdoServsList] = await Promise.all([
+  const [atividades, funcionarios, fotos, rdoServsList, obraComCliente, nomeEmpresa] = await Promise.all([
     db.select().from(rdoAtividades).where(eq(rdoAtividades.rdoId, id)),
     db.select().from(rdoFuncionarios).where(eq(rdoFuncionarios.rdoId, id)),
     db.select().from(rdoFotos).where(eq(rdoFotos.rdoId, id)),
@@ -67,7 +75,54 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
       .from(rdoServicos)
       .leftJoin(servicos, eq(rdoServicos.servicoId, servicos.id))
       .where(eq(rdoServicos.rdoId, id)),
+    db
+      .select({ clienteNome: clientes.nome })
+      .from(obras)
+      .leftJoin(clientes, eq(obras.clienteId, clientes.id))
+      .where(eq(obras.id, rdoData.obraId))
+      .limit(1)
+      .then((r) => r[0] ?? { clienteNome: null }),
+    db
+      .select({ nome: empresas.nome })
+      .from(usuarios)
+      .innerJoin(empresas, eq(usuarios.empresaId, empresas.id))
+      .where(eq(usuarios.id, usuario.id))
+      .limit(1)
+      .then((r) => r[0]?.nome ?? 'CMI Gestão'),
   ])
+
+  const pdfData: RdoPdfData = {
+    rdo: {
+      id: rdoData.id,
+      data: rdoData.data,
+      clima: rdoData.clima,
+      status: rdoData.status,
+      motivoRejeicao: rdoData.motivoRejeicao,
+      assinaturaInterna: rdoData.assinaturaInterna,
+      assinaturaCliente: rdoData.assinaturaCliente,
+      criadoEm: rdoData.criadoEm.toISOString(),
+    },
+    obra: { nome: obraData?.nome ?? '—', clienteNome: obraComCliente.clienteNome },
+    empresa: nomeEmpresa,
+    atividades: atividades.map((a) => ({
+      descricao: a.descricao,
+      horaInicio: a.horaInicio,
+      horaFim: a.horaFim,
+      observacoes: a.observacoes,
+    })),
+    funcionarios: funcionarios.map((f) => ({
+      nomeFuncionario: f.nomeFuncionario,
+      funcao: f.funcao,
+      horasTrabalhadas: String(f.horasTrabalhadas),
+    })),
+    servicos: rdoServsList.map((s) => ({
+      nomeServico: s.nomeServico,
+      quantidade: String(s.quantidade),
+      unidade: s.unidade,
+      observacoes: s.obs,
+    })),
+    fotos: fotos.map((f) => ({ url: f.url, legenda: f.legenda })),
+  }
 
   const clienteVendo = isCliente(usuario.funcao)
   const podeAprovar = clienteVendo && rdoData.status === 'pendente_aprovacao'
@@ -93,11 +148,7 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={cfg.variant as any} className="text-sm px-3 py-1">{cfg.label}</Badge>
-          <Button variant="outline" size="sm" asChild>
-            <a href={`/api/rdo/${id}/pdf`} download>
-              <FileDown className="h-4 w-4 mr-2" />PDF
-            </a>
-          </Button>
+          <PdfDownloadButton data={pdfData} />
         </div>
       </div>
 

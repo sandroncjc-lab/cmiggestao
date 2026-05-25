@@ -118,7 +118,7 @@ interface RdoPdfProps {
     motivoRejeicao: string | null
     assinaturaInterna: string | null
     assinaturaCliente: string | null
-    criadoEm: Date
+    criadoEm: Date | string
   }
   obra: { nome: string; clienteNome: string | null }
   empresa: string
