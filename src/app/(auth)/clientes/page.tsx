@@ -1,12 +1,13 @@
 import { db } from '@/app/db'
 import { clientes, empresas } from '@/app/db/schema'
-import { eq, ilike, sql } from 'drizzle-orm'
+import { and, eq, ilike, sql } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Search } from 'lucide-react'
+import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
 
 interface Props {
   searchParams: Promise<{ q?: string; page?: string }>
@@ -15,11 +16,15 @@ interface Props {
 const PER_PAGE = 20
 
 export default async function ClientesPage({ searchParams }: Props) {
+  const empresaId = await getEmpresaIdOuErro()
   const { q, page } = await searchParams
   const currentPage = Number(page ?? 1)
   const offset = (currentPage - 1) * PER_PAGE
 
-  const whereClause = q ? ilike(clientes.nome, `%${q}%`) : undefined
+  const whereClause = and(
+    eq(clientes.empresaId, empresaId),
+    q ? ilike(clientes.nome, `%${q}%`) : undefined,
+  )
 
   const [rows, [{ total }]] = await Promise.all([
     db

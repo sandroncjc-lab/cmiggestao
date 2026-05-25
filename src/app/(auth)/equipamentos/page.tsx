@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
+import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
   disponivel: { label: 'Disponível', variant: 'success' },
@@ -15,6 +16,8 @@ const statusConfig: Record<string, { label: string; variant: string }> = {
 }
 
 export default async function EquipamentosPage() {
+  const empresaId = await getEmpresaIdOuErro()
+
   const rows = await db
     .select({
       id: equipamentos.id,
@@ -26,6 +29,7 @@ export default async function EquipamentosPage() {
     })
     .from(equipamentos)
     .leftJoin(obras, eq(equipamentos.obraId, obras.id))
+    .where(eq(equipamentos.empresaId, empresaId))
     .orderBy(equipamentos.nome)
 
   return (

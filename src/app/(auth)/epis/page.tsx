@@ -1,12 +1,13 @@
 import { db } from '@/app/db'
 import { epis, obras } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus, AlertTriangle } from 'lucide-react'
+import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
 
 function getEpiVariant(validade: string | null, status: string): { label: string; variant: string } {
   if (status === 'vencido') return { label: 'Vencido', variant: 'destructive' }
@@ -17,6 +18,8 @@ function getEpiVariant(validade: string | null, status: string): { label: string
 }
 
 export default async function EpisPage() {
+  const empresaId = await getEmpresaIdOuErro()
+
   const rows = await db
     .select({
       id: epis.id,
@@ -30,6 +33,7 @@ export default async function EpisPage() {
     })
     .from(epis)
     .leftJoin(obras, eq(epis.obraId, obras.id))
+    .where(eq(epis.empresaId, empresaId))
     .orderBy(epis.validade)
 
   const vencidos = rows.filter(e => e.status === 'vencido').length
