@@ -2,8 +2,8 @@
 'use server'
 
 import { db } from '@/app/db'
-import { hhContratos, hhRegistros, notificacoes, obras } from '@/app/db/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { hhContratos, hhRegistros, notificacoes, obras, rdo, rdoFuncionarios } from '@/app/db/schema'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { verificarOwnershipObra, verificarOwnershipHHRegistro } from '@/lib/auth/ownership'
@@ -12,21 +12,20 @@ export async function listarHHDados() {
   const usuario = await getUsuarioAtual()
   if (!usuario) return { obrasList: [], registros: [], consumoMap: {} as Record<string, number> }
 
+  // INNER JOIN com hhContratos: só aparecem obras que já têm HH contratado definido
   let obrasQuery
   if (isCliente(usuario.funcao) && usuario.clienteId) {
-    // aprovador_cliente: apenas obras do seu cliente
     obrasQuery = db
       .select({ id: obras.id, nome: obras.nome, totalHH: hhContratos.totalHH, hhId: hhContratos.id })
-      .from(obras)
-      .leftJoin(hhContratos, eq(hhContratos.obraId, obras.id))
+      .from(hhContratos)
+      .innerJoin(obras, eq(obras.id, hhContratos.obraId))
       .where(eq(obras.clienteId, usuario.clienteId))
       .orderBy(obras.nome)
   } else {
-    // usuários internos: filtrar pela empresa — impede cross-tenant
     obrasQuery = db
       .select({ id: obras.id, nome: obras.nome, totalHH: hhContratos.totalHH, hhId: hhContratos.id })
-      .from(obras)
-      .leftJoin(hhContratos, eq(hhContratos.obraId, obras.id))
+      .from(hhContratos)
+      .innerJoin(obras, eq(obras.id, hhContratos.obraId))
       .where(eq(obras.empresaId, usuario.empresaId))
       .orderBy(obras.nome)
   }
@@ -36,12 +35,22 @@ export async function listarHHDados() {
 
   if (obraIds.length === 0) return { obrasList, registros: [], consumoMap: {} }
 
+  // FONTE OFICIAL DE CONSUMO: rdoFuncionarios de RDOs não-rejeitados
+  // Estorno automático: RDO rejeitado sai do filtro → horas devolvidas ao saldo
   const [consumoPorObra, registros] = await Promise.all([
     db
-      .select({ obraId: hhRegistros.obraId, total: sql<number>`coalesce(sum(horas_normais + horas_extras), 0)` })
-      .from(hhRegistros)
-      .where(inArray(hhRegistros.obraId, obraIds))
-      .groupBy(hhRegistros.obraId),
+      .select({
+        obraId: rdo.obraId,
+        total: sql<number>`coalesce(sum(${rdoFuncionarios.horasTrabalhadas}), 0)`,
+      })
+      .from(rdoFuncionarios)
+      .innerJoin(rdo, eq(rdo.id, rdoFuncionarios.rdoId))
+      .where(and(
+        inArray(rdo.obraId, obraIds),
+        ne(rdo.status, 'rejeitado'),
+      ))
+      .groupBy(rdo.obraId),
+    // Registros manuais (anotações) — não afetam o saldo, apenas exibição
     db
       .select({
         id: hhRegistros.id,
@@ -116,12 +125,14 @@ export async function registrarHH(formData: FormData) {
   }
 
   // alertas de consumo: dispara UMA vez ao cruzar o limiar (verifica notificação existente)
+  // Usa rdoFuncionarios como fonte oficial — consistente com o saldo exibido no painel
   const [contrato] = await db.select().from(hhContratos).where(eq(hhContratos.obraId, obraId)).limit(1)
   if (contrato && obraData) {
     const [consumo] = await db
-      .select({ total: sql<number>`coalesce(sum(horas_normais + horas_extras), 0)` })
-      .from(hhRegistros)
-      .where(eq(hhRegistros.obraId, obraId))
+      .select({ total: sql<number>`coalesce(sum(${rdoFuncionarios.horasTrabalhadas}), 0)` })
+      .from(rdoFuncionarios)
+      .innerJoin(rdo, eq(rdo.id, rdoFuncionarios.rdoId))
+      .where(and(eq(rdo.obraId, obraId), ne(rdo.status, 'rejeitado')))
 
     const pct = (Number(consumo.total) / Number(contrato.totalHH)) * 100
     const responsavelId = obraData.responsavelInternoId ?? null

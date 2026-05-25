@@ -1,6 +1,8 @@
 import { db } from '@/app/db'
 import { clientes, obras } from '@/app/db/schema'
 import { criarContrato } from '@/lib/actions/contratos'
+import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
+import { eq } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +14,10 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export default async function NovoContratoPage() {
+  const empresaId = await getEmpresaIdOuErro()
   const [clientesList, obrasList] = await Promise.all([
-    db.select().from(clientes).orderBy(clientes.nome),
-    db.select().from(obras).orderBy(obras.nome),
+    db.select().from(clientes).where(eq(clientes.empresaId, empresaId)).orderBy(clientes.nome),
+    db.select().from(obras).where(eq(obras.empresaId, empresaId)).orderBy(obras.nome),
   ])
 
   async function action(formData: FormData) {
@@ -52,6 +55,17 @@ export default async function NovoContratoPage() {
                   <option value="encerrado">Encerrado</option>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tipo">Tipo de Contrato *</Label>
+              <Select id="tipo" name="tipo" required>
+                <option value="valor_fechado">Valor Fechado</option>
+                <option value="homem_hora">Homem Hora (HH)</option>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Contratos Homem Hora descontam horas automaticamente a cada RDO finalizado.
+              </p>
             </div>
 
             <div className="space-y-2">

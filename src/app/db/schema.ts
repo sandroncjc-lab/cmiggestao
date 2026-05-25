@@ -235,6 +235,11 @@ export const statusContratoEnum = pgEnum('status_contrato', [
   'encerrado',
 ])
 
+export const tipoContratoEnum = pgEnum('tipo_contrato', [
+  'homem_hora',
+  'valor_fechado',
+])
+
 export const contratos = pgTable('contratos', {
   id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   numero: varchar('numero', { length: 100 }).notNull().unique(),
@@ -246,6 +251,7 @@ export const contratos = pgTable('contratos', {
   dataInicio: date('data_inicio').notNull(),
   dataFim: date('data_fim'),
   status: statusContratoEnum('status').notNull().default('rascunho'),
+  tipo: tipoContratoEnum('tipo').notNull().default('valor_fechado'),
   percentualExecucao: numeric('percentual_execucao', { precision: 5, scale: 2 }).notNull().default('0'),
   urlPdf: text('url_pdf'),
   observacoes: text('observacoes'),

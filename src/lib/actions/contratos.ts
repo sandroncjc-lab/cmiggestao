@@ -29,6 +29,7 @@ export async function criarContrato(formData: FormData) {
     dataInicio: formData.get('dataInicio') as string,
     dataFim: (formData.get('dataFim') as string) || null,
     status: (formData.get('status') as 'rascunho' | 'ativo' | 'suspenso' | 'encerrado') ?? 'rascunho',
+    tipo: (formData.get('tipo') as 'homem_hora' | 'valor_fechado') ?? 'valor_fechado',
     urlPdf: (formData.get('urlPdf') as string) || null,
     observacoes: (formData.get('observacoes') as string) || null,
   }
@@ -47,6 +48,7 @@ export async function atualizarContrato(id: string, formData: FormData) {
     valorTotal: formData.get('valorTotal') as string,
     dataFim: (formData.get('dataFim') as string) || null,
     status: formData.get('status') as 'rascunho' | 'ativo' | 'suspenso' | 'encerrado',
+    tipo: (formData.get('tipo') as 'homem_hora' | 'valor_fechado') ?? 'valor_fechado',
     percentualExecucao: (formData.get('percentualExecucao') as string) || '0',
     urlPdf: (formData.get('urlPdf') as string) || null,
     observacoes: (formData.get('observacoes') as string) || null,

@@ -1,129 +1,103 @@
-# CHECKLIST DE PRODUÇÃO — CMIG Gestão
-> Análise realizada em: 2026-05-20 | Tech Lead Review
+# CHECKLIST — CMI Gestão
+
+Última atualização: 2026-05-25
 
 ---
 
-## 1. SEGURANÇA
+## ✅ Módulo Homem Hora (HH) — Concluído em 2026-05-25
 
-| Item | Status | Detalhe |
-|------|--------|---------|
-| Server actions validam autenticação | ⚠️ Atenção | `obras.ts`, `hh.ts`, `contratos.ts`, `servicos.ts`, `equipamentos.ts` têm actions **sem nenhuma verificação de auth** (ex: `atualizarStatusObra`, `excluirObra`, `registrarHH`, `definirHHContratado`, `excluirRegistroHH`, `criarContrato`) |
-| Multi-tenancy (empresaId) em todas as listagens | ❌ Quebrado | `listarRdos()` e `listarHHDados()` para usuários internos retornam dados de **todas as empresas** — não filtra por `empresaId`. Um admin de empresa A vê RDOs da empresa B. |
-| `aprovador_cliente` vê só obras do seu cliente | ✅ OK | `listarRdos` e `listarHHDados` filtram por `clienteId` quando `funcao === 'aprovador_cliente'` |
-| `.env` no `.gitignore` | ✅ OK | `.gitignore` inclui `.env*` (cobre `.env`, `.env.local`, etc.) |
-| Proteção de rotas via proxy | ✅ OK | `src/proxy.ts` existe (Clerk middleware) |
+### F0 — Diagnóstico
+- [x] Schema auditado: `hhContratos`, `hhRegistros`, `rdoFuncionarios`, `contratos`, `obras`
+- [x] Causa raiz do "0h / 0h": rota `/hh/contrato` não existia (404)
+- [x] Causa dos "16h" em serviços avulsos: lançamentos manuais sem validação de tipo
+- [x] Brecha de isolamento identificada: `ContratosPage` sem filtro `empresaId`
+
+### F1 — Correção do 404
+- [x] Criado `src/app/(auth)/hh/contrato/page.tsx`
+- [x] Botão "Definir HH Contratado" agora funciona corretamente
+- [x] Redireciona clientes (`aprovador_cliente`) de volta a `/hh`
+
+### F2 — Saneamento de dados
+- [x] 2 registros indevidos excluídos após confirmação (16h, obra "serviços avulsos", nomes "abc" e "JHJH")
+- [x] `hh_registros` limpo
+
+### F3 — Automação do consumo via RDO
+- [x] Migração `0004_happy_bloodaxe.sql` aplicada no Neon:
+  - Enum `tipo_contrato` criado (`homem_hora | valor_fechado`)
+  - Campo `tipo` adicionado em `contratos` com DEFAULT `valor_fechado` — dados existentes preservados
+- [x] Fonte oficial de consumo: `rdoFuncionarios.horasTrabalhadas` (RDOs com `status != 'rejeitado'`)
+- [x] Estorno automático: RDO rejeitado sai do `SUM` → horas voltam ao saldo
+- [x] Painel HH: INNER JOIN com `hhContratos` — só exibe obras com HH contratado definido
+- [x] `hhRegistros` permanece como anotação manual (não afeta saldo)
+- [x] Alertas 80%/100% atualizados para usar `rdoFuncionarios` como fonte (consistência)
+
+### F4 — UI de contratos + isolamento
+- [x] Campo `tipo` no formulário `/contratos/novo` (Valor Fechado / Homem Hora)
+- [x] Actions `criarContrato` e `atualizarContrato` salvam o campo `tipo`
+- [x] Listagem `/contratos`: coluna "Tipo" com badge visual
+- [x] **Brecha de isolamento corrigida**: `ContratosPage` filtra por `empresaId` via INNER JOIN
+- [x] `/contratos/novo`: queries filtradas por `empresaId`
+- [x] `/hh/contrato`: exibe apenas obras com contrato `homem_hora`
+
+### F5 — Build
+- [x] `npx tsc --noEmit` — zero erros
+- [x] `npm run build` — zero erros, todas as 27 rotas compiladas
 
 ---
 
-## 2. BUGS CRÍTICOS
+## Arquivos modificados
 
-| Item | Status | Detalhe |
-|------|--------|---------|
-| CRUD de Clientes | ✅ OK | Criar, editar, excluir com validação Zod e auth |
-| CRUD de Obras | ⚠️ Atenção | `atualizarStatusObra` e `excluirObra` não verificam se a obra pertence à empresa do usuário — qualquer autenticado pode excluir obra alheia |
-| CRUD de Contratos | ❌ Quebrado | `criarContrato`, `excluirContrato` sem qualquer verificação de auth — endpoints completamente abertos |
-| CRUD de HH | ⚠️ Atenção | `registrarHH`, `definirHHContratado`, `excluirRegistroHH` sem verificação de auth |
-| Build sem erros | ⚠️ Atenção | Não executado nesta análise; verificar antes do deploy |
-| Alertas de HH (80%/100%) | ⚠️ Atenção | Lógica usa faixas muito estreitas (`pct >= 80 && pct < 81`) — alerta de 80% só dispara se o consumo cair exatamente nessa janela de 1%; na prática quase nunca dispara |
-
----
-
-## 3. FUNCIONALIDADES ESSENCIAIS
-
-| Item | Status | Detalhe |
-|------|--------|---------|
-| Login/logout | ✅ OK | Clerk gerencia — rotas protegidas pelo `proxy.ts` |
-| RDO com assinatura touch | ✅ OK | `rdo-form.tsx` implementa canvas com eventos mouse e touch (`startDraw`, `getPos` com `touches`) |
-| Notificações ao aprovador (RDO) | ✅ OK | `criarRdoCompleto` e `enviarRdoParaAprovacao` inserem na tabela `notificacoes` para `aprovadorClienteId` |
-| Notificações ao aprovador (HH) | ✅ OK | `registrarHH` notifica `aprovadorClienteId` da obra |
-| HH calculando saldo | ✅ OK | Saldo = `totalHH - consumidoHH` calculado via `coalesce(sum(horas_normais + horas_extras))` |
-| Layout auth sem redirecionamento para usuário sem empresaId | ⚠️ Atenção | `AuthLayout` usa `funcao ?? 'admin'` como fallback — se usuário Clerk não tiver registro local, funcao vira 'admin' silenciosamente |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/app/db/schema.ts` | + enum `tipoContratoEnum`, + campo `tipo` em `contratos` |
+| `drizzle/0004_happy_bloodaxe.sql` | Migração incremental (aplicada) |
+| `src/lib/actions/hh.ts` | Fonte de consumo → `rdoFuncionarios`; INNER JOIN no painel |
+| `src/lib/actions/contratos.ts` | + campo `tipo` em criar e atualizar |
+| `src/app/(auth)/hh/contrato/page.tsx` | **Criado** — corrige o 404 |
+| `src/app/(auth)/contratos/page.tsx` | + coluna Tipo; + filtro `empresaId` (fix isolamento crítico) |
+| `src/app/(auth)/contratos/novo/page.tsx` | + campo tipo; + filtro `empresaId` nas queries |
 
 ---
 
-## 5 PROBLEMAS MAIS CRÍTICOS PARA PRODUÇÃO
+## Regras de negócio implementadas
 
-### ❌ CRÍTICO 1 — Multi-tenancy quebrado nas listagens internas
-**Impacto:** Empresa A pode ver RDOs, HH e dados da empresa B.
+1. **Tipo de contrato**: `homem_hora` ou `valor_fechado` (DEFAULT). Existentes: `valor_fechado`.
+2. **Saldo HH** = `hhContratos.totalHH` − `SUM(rdoFuncionarios.horasTrabalhadas)` de RDOs não-rejeitados. Calculado sob demanda — sem saldo fixo armazenado.
+3. **Estorno automático**: rejeitar RDO devolve as horas ao saldo sem código extra.
+4. **Painel HH**: exibe apenas obras com HH contratado definido (`hh_contratos`).
+5. **`hhRegistros`**: anotação manual — não entra no saldo.
+6. **Isolamento**: todas as queries filtram por `empresaId` do usuário autenticado.
 
-**Arquivo:** `src/lib/actions/rdo.ts:29-33` e `src/lib/actions/hh.ts:21-26`
+---
 
-**Solução:**
-```ts
-// Em listarRdos() — branch do usuário interno (não-cliente):
-return db.select(...)
-  .from(rdo)
-  .leftJoin(obras, eq(rdo.obraId, obras.id))
-  .where(eq(obras.empresaId, usuario.empresaId))  // ← adicionar isso
-  .orderBy(rdo.data)
+## Variáveis de ambiente necessárias
 
-// Em listarHHDados() — mesmo padrão:
-.where(eq(obras.empresaId, usuario.empresaId))
+### Local (`.env`)
+```
+DATABASE_URL=postgresql://...neon.tech/neondb?sslmode=require&channel_binding=require
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+CLERK_SECRET_KEY=sk_...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+CLERK_ADMIN_ID=user_...
+CLERK_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_APP_URL=https://cmiggestao.vercel.app
 ```
 
----
-
-### ❌ CRÍTICO 2 — Actions de Contratos sem autenticação
-**Impacto:** Qualquer requisição HTTP pode criar, editar ou excluir contratos de qualquer empresa.
-
-**Arquivo:** `src/lib/actions/contratos.ts`
-
-**Solução:** Adicionar no início de cada action:
-```ts
-const empresaId = await getEmpresaIdOuErro() // lança erro se não autenticado
-```
-E filtrar queries por `eq(contratos.empresaId, empresaId)` (se a coluna existir no schema) ou validar via join com cliente.
+### Vercel (Settings → Environment Variables)
+Mesmas variáveis acima. Atenção:
+- `DATABASE_URL` — string Neon com `sslmode=require&channel_binding=require`
+- `CLERK_WEBHOOK_SECRET` — Clerk Dashboard → Webhooks → endpoint `/api/webhooks/clerk`
+- `CLERK_ADMIN_ID` — ID do usuário admin no Clerk
 
 ---
 
-### ⚠️ CRÍTICO 3 — `excluirObra` e `atualizarStatusObra` sem verificação de ownership
-**Impacto:** Um usuário autenticado de qualquer empresa pode excluir obras alheias passando um UUID.
+## Próximos passos sugeridos
 
-**Arquivo:** `src/lib/actions/obras.ts:57-69`
-
-**Solução:**
-```ts
-export async function excluirObra(id: string) {
-  const empresaId = await getEmpresaIdOuErro()
-  await db.delete(obras)
-    .where(and(eq(obras.id, id), eq(obras.empresaId, empresaId)))
-  revalidatePath('/obras')
-}
-```
-
----
-
-### ⚠️ CRÍTICO 4 — Actions de HH sem autenticação
-**Impacto:** `registrarHH`, `definirHHContratado`, `excluirRegistroHH` executam sem verificar sessão.
-
-**Arquivo:** `src/lib/actions/hh.ts:61-141`
-
-**Solução:** Adicionar `const usuario = await getUsuarioAtual(); if (!usuario) throw new Error('Não autenticado')` no início de cada uma. Para `excluirRegistroHH`, verificar também ownership via join com obras.
-
----
-
-### ⚠️ CRÍTICO 5 — Alertas de consumo de HH nunca disparam
-**Impacto:** Responsáveis não são notificados ao atingir 80% do HH contratado (janela de 1% nunca é capturada incrementalmente).
-
-**Arquivo:** `src/lib/actions/hh.ts:122-131`
-
-**Solução:** Trocar a lógica de faixa exata por verificação de cruzamento de limiar:
-```ts
-// Buscar consumo anterior (antes deste registro) para detectar cruzamento
-// Ou simplificar: verificar se pct >= 80 && pctAnterior < 80
-// Solução mais simples: checar apenas o limite superior
-if (pct >= 80 && pct < 100) { /* alerta 80% */ }
-if (pct >= 100) { /* alerta 100% */ }
-```
-
----
-
-## Resumo Executivo
-
-| Área | Nota |
-|------|------|
-| Segurança | 4/10 — multi-tenancy quebrado, várias actions sem auth |
-| Bugs | 6/10 — CRUD principal funciona, mas ações destrutivas sem proteção |
-| Funcionalidades | 8/10 — fluxo principal (RDO, assinatura, notificações) operacional |
-
-**Veredicto: NÃO está pronto para produção.** Os itens Crítico 1 e 2 expõem dados de todas as empresas e devem ser corrigidos antes de qualquer deploy.
+- [ ] Página de edição de contrato (`/contratos/[id]/editar`) com campo `tipo`
+- [ ] Aviso no RDO quando obra não tem contrato `homem_hora` (informativo)
+- [ ] PDF do RDO (atividades, funcionários, fotos, assinaturas)
+- [ ] Aprovação remota do RDO (cliente ausente)
+- [ ] Envio de e-mail com PDF após aprovação

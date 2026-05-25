@@ -1,12 +1,13 @@
 import { db } from '@/app/db'
 import { contratos, clientes, obras } from '@/app/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
@@ -16,7 +17,15 @@ const statusConfig: Record<string, { label: string; variant: string }> = {
   encerrado: { label: 'Encerrado', variant: 'outline' },
 }
 
+const tipoConfig: Record<string, { label: string; variant: string }> = {
+  homem_hora: { label: 'Homem Hora', variant: 'warning' },
+  valor_fechado: { label: 'Valor Fechado', variant: 'secondary' },
+}
+
 export default async function ContratosPage() {
+  // Isolamento: filtra por empresa do usuário autenticado
+  const empresaId = await getEmpresaIdOuErro()
+
   const rows = await db
     .select({
       id: contratos.id,
@@ -25,13 +34,15 @@ export default async function ContratosPage() {
       dataInicio: contratos.dataInicio,
       dataFim: contratos.dataFim,
       status: contratos.status,
+      tipo: contratos.tipo,
       percentualExecucao: contratos.percentualExecucao,
       clienteNome: clientes.nome,
       obraNome: obras.nome,
     })
     .from(contratos)
-    .leftJoin(clientes, eq(contratos.clienteId, clientes.id))
+    .innerJoin(clientes, eq(contratos.clienteId, clientes.id))
     .leftJoin(obras, eq(contratos.obraId, obras.id))
+    .where(eq(clientes.empresaId, empresaId))
     .orderBy(contratos.criadoEm)
 
   return (
@@ -54,6 +65,7 @@ export default async function ContratosPage() {
                 <TableHead>Número</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Obra</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead>Valor Total</TableHead>
                 <TableHead>Execução</TableHead>
                 <TableHead>Status</TableHead>
@@ -64,19 +76,23 @@ export default async function ContratosPage() {
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-12">
                     Nenhum contrato cadastrado
                   </TableCell>
                 </TableRow>
               )}
               {rows.map((c) => {
                 const cfg = statusConfig[c.status] ?? { label: c.status, variant: 'secondary' }
+                const tipoCfg = tipoConfig[c.tipo ?? 'valor_fechado'] ?? tipoConfig.valor_fechado
                 const pct = Number(c.percentualExecucao)
                 return (
                   <TableRow key={c.id}>
                     <TableCell className="font-mono font-medium">{c.numero}</TableCell>
                     <TableCell>{c.clienteNome ?? '—'}</TableCell>
                     <TableCell>{c.obraNome ?? '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant={tipoCfg.variant as any}>{tipoCfg.label}</Badge>
+                    </TableCell>
                     <TableCell className="font-medium">
                       R$ {Number(c.valorTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </TableCell>
