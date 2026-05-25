@@ -167,6 +167,7 @@ export async function criarRdoCompleto(dados: {
     }
 
     revalidatePath('/rdo')
+    revalidatePath('/hh')
     return { success: true, rdoId }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro ao criar RDO'
@@ -221,6 +222,7 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
 
   revalidatePath('/rdo')
   revalidatePath(`/rdo/${id}`)
+  revalidatePath('/hh')
 }
 
 export async function aprovarRdo(id: string, assinaturaCliente: string) {
@@ -249,6 +251,7 @@ export async function aprovarRdo(id: string, assinaturaCliente: string) {
   }
   revalidatePath('/rdo')
   revalidatePath(`/rdo/${id}`)
+  revalidatePath('/hh')
 }
 
 export async function rejeitarRdo(id: string, motivoRejeicao: string) {
@@ -276,4 +279,5 @@ export async function rejeitarRdo(id: string, motivoRejeicao: string) {
   }
   revalidatePath('/rdo')
   revalidatePath(`/rdo/${id}`)
+  revalidatePath('/hh')
 }
