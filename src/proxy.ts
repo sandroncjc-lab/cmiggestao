@@ -5,6 +5,8 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/webhooks/clerk',
+  '/aprovar(.*)',        // aprovação remota de RDO — sem login necessário
+  '/api/rdo/(.*)/pdf',  // download de PDF — protegido pela session cookie do Clerk internamente
 ])
 
 export default clerkMiddleware(async (auth, request) => {
