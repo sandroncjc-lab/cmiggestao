@@ -3,7 +3,6 @@ import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, o
 import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,13 +11,8 @@ import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { RdoAcoesCliente } from './rdo-acoes-cliente'
 import { RdoAcoesInterno } from './rdo-acoes-interno'
 import { LinkAprovacao } from './link-aprovacao'
+import { PdfButtonWrapper } from './pdf-button-wrapper'
 import type { RdoPdfData } from './pdf-download-button'
-
-// Carrega o botão PDF apenas no cliente (evita bundling server-side do react-pdf)
-const PdfDownloadButton = dynamic(
-  () => import('./pdf-download-button').then((m) => m.PdfDownloadButton),
-  { ssr: false, loading: () => <Button variant="outline" size="sm" disabled>PDF…</Button> }
-)
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
   rascunho: { label: 'Rascunho', variant: 'secondary' },
@@ -148,7 +142,7 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={cfg.variant as any} className="text-sm px-3 py-1">{cfg.label}</Badge>
-          <PdfDownloadButton data={pdfData} />
+          <PdfButtonWrapper data={pdfData} />
         </div>
       </div>
 
