@@ -1,22 +1,19 @@
 /**
  * Service Worker — CMIG Gestão de Obras
  *
- * Estratégia: Network Only.
- * O app SEMPRE busca do servidor — nunca serve conteúdo desatualizado.
- * O SW existe apenas para satisfazer o critério de instalabilidade do browser.
+ * Objetivo: tornar o app instalável. SEM cache de conteúdo.
  *
- * Ao ativar, apaga qualquer cache de versões anteriores.
+ * Só interceptamos GET do mesmo domínio para evitar conflitos com
+ * requests cross-origin (Clerk, Google Fonts, APIs externas).
+ * POST/PUT/DELETE passam direto pelo browser sem intervenção do SW.
  */
 
-const CACHE_NAME = 'cmig-v1'
-
 self.addEventListener('install', () => {
-  // Ativa o novo SW imediatamente, sem esperar fechar todas as abas
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  // Apaga caches antigos (caso uma versão anterior tenha criado algum)
+  // Apaga qualquer cache de versões anteriores
   event.waitUntil(
     caches.keys()
       .then((names) => Promise.all(names.map((n) => caches.delete(n))))
@@ -25,7 +22,22 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  // Network Only: passa direto para o servidor
-  // Se o servidor não responder (sem internet), o browser mostra seu erro padrão
-  event.respondWith(fetch(event.request))
+  const url = new URL(event.request.url)
+
+  // Ignora requests cross-origin (Clerk, fontes, APIs externas)
+  if (url.origin !== self.location.origin) return
+
+  // Ignora métodos que não são GET (Server Actions, formulários)
+  if (event.request.method !== 'GET') return
+
+  // Network Only: sempre vai ao servidor, nunca serve cache
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      // Sem internet: retorna 503 simples (não mostra conteúdo antigo)
+      return new Response('Sem conexão com o servidor.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      })
+    })
+  )
 })
