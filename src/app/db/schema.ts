@@ -145,6 +145,8 @@ export const rdo = pgTable('rdo', {
   aprovadoEm: timestamp('aprovado_em'),
   aprovadoPorId: uuid('aprovado_por_id').references(() => usuarios.id),
   motivoRejeicao: text('motivo_rejeicao'),
+  linkToken: varchar('link_token', { length: 64 }).unique(),
+  tokenExpiresAt: timestamp('token_expires_at'),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
 })

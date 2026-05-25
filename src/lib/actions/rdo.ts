@@ -1,11 +1,12 @@
 'use server'
 
 import { db } from '@/app/db'
-import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, notificacoes, obras } from '@/app/db/schema'
+import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, notificacoes, obras, usuarios, clientes } from '@/app/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getUsuarioAtual, getUsuarioOuErro, isCliente } from '@/lib/server/getUsuario'
 import { verificarOwnershipObra } from '@/lib/auth/ownership'
+import { randomBytes } from 'crypto'
 
 // ─── helpers internos ────────────────────────────────────────────────────────
 
@@ -194,21 +195,35 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
   if (isCliente(usuario.funcao)) throw new Error('Acesso negado')
   await verificarOwnershipRdo(id, usuario)
 
+  // Gera token seguro para aprovação remota (Modo B)
+  const linkToken = randomBytes(32).toString('hex')
+  const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dias
+
   await db.update(rdo).set({
     status: 'pendente_aprovacao',
     assinaturaInterna,
+    linkToken,
+    tokenExpiresAt,
     atualizadoEm: new Date(),
   }).where(eq(rdo.id, id))
 
-  const [rdoRow] = await db.select({ obraId: rdo.obraId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
+  const [rdoRow] = await db
+    .select({ obraId: rdo.obraId, data: rdo.data })
+    .from(rdo).where(eq(rdo.id, id)).limit(1)
+
   if (rdoRow) {
     const [obraData] = await db
-      .select({ aprovadorClienteId: obras.aprovadorClienteId, nome: obras.nome })
+      .select({
+        aprovadorClienteId: obras.aprovadorClienteId,
+        nome: obras.nome,
+        clienteId: obras.clienteId,
+      })
       .from(obras)
       .where(eq(obras.id, rdoRow.obraId))
       .limit(1)
 
     if (obraData?.aprovadorClienteId) {
+      // Notificação interna (Modo A — aprovador tem conta no sistema)
       await db.insert(notificacoes).values({
         usuarioId: obraData.aprovadorClienteId,
         titulo: 'RDO aguardando sua aprovação',
@@ -218,11 +233,76 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
         tabelaReferencia: 'rdo',
       })
     }
+
+    // Modo B — envia e-mail com link de aprovação (se Resend configurado)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cmiggestao.vercel.app'
+    const linkAprovacao = `${appUrl}/aprovar/${linkToken}`
+
+    if (process.env.RESEND_API_KEY && obraData?.clienteId) {
+      try {
+        const [clienteData] = await db
+          .select({ email: clientes.email, nome: clientes.nome })
+          .from(clientes).where(eq(clientes.id, obraData.clienteId)).limit(1)
+
+        if (clienteData?.email) {
+          const { Resend } = await import('resend')
+          const resend = new Resend(process.env.RESEND_API_KEY)
+          await resend.emails.send({
+            from: 'CMI Gestão <noreply@cmiggestao.com.br>',
+            to: clienteData.email,
+            subject: `RDO aguardando aprovação — ${obraData.nome} (${rdoRow.data})`,
+            html: emailAprovacaoHtml({
+              clienteNome: clienteData.nome,
+              obraNome: obraData.nome,
+              data: String(rdoRow.data),
+              link: linkAprovacao,
+            }),
+          })
+        }
+      } catch (e) {
+        // Falha no e-mail não bloqueia o fluxo
+        console.error('Erro ao enviar e-mail de aprovação:', e)
+      }
+    }
   }
 
   revalidatePath('/rdo')
   revalidatePath(`/rdo/${id}`)
   revalidatePath('/hh')
+}
+
+function emailAprovacaoHtml({ clienteNome, obraNome, data, link }: {
+  clienteNome: string; obraNome: string; data: string; link: string
+}) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:Arial,sans-serif;background:#f8fafc;margin:0;padding:32px">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <div style="background:#1e40af;padding:24px 32px">
+      <h1 style="color:#fff;margin:0;font-size:20px">CMI Gestão de Obras</h1>
+    </div>
+    <div style="padding:32px">
+      <p style="color:#334155;margin:0 0 16px">Olá, <strong>${clienteNome}</strong>!</p>
+      <p style="color:#334155;margin:0 0 24px">
+        Um Relatório Diário de Obra está aguardando sua aprovação:
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+        <tr><td style="padding:8px 12px;background:#f1f5f9;color:#64748b;font-size:13px;border-radius:4px 0 0 4px">Obra</td>
+            <td style="padding:8px 12px;font-weight:bold;color:#1e293b;font-size:13px">${obraNome}</td></tr>
+        <tr><td style="padding:8px 12px;background:#f1f5f9;color:#64748b;font-size:13px">Data</td>
+            <td style="padding:8px 12px;font-weight:bold;color:#1e293b;font-size:13px">${data}</td></tr>
+      </table>
+      <a href="${link}" style="display:inline-block;background:#1e40af;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
+        Ver RDO e Aprovar →
+      </a>
+      <p style="color:#94a3b8;font-size:12px;margin:24px 0 0">
+        Este link expira em 7 dias. Se não reconhece este RDO, ignore este e-mail.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
 }
 
 export async function aprovarRdo(id: string, assinaturaCliente: string) {
@@ -279,5 +359,114 @@ export async function rejeitarRdo(id: string, motivoRejeicao: string) {
   }
   revalidatePath('/rdo')
   revalidatePath(`/rdo/${id}`)
+  revalidatePath('/hh')
+}
+
+// ─── Aprovação remota por token (Modo B — sem login) ────────────────────────
+
+export async function carregarRdoPorToken(token: string) {
+  const [rdoRow] = await db
+    .select({
+      id: rdo.id,
+      data: rdo.data,
+      clima: rdo.clima,
+      status: rdo.status,
+      tokenExpiresAt: rdo.tokenExpiresAt,
+      obraId: rdo.obraId,
+    })
+    .from(rdo)
+    .where(eq(rdo.linkToken, token))
+    .limit(1)
+
+  if (!rdoRow) return null
+  if (rdoRow.status !== 'pendente_aprovacao') return { erro: 'JA_PROCESSADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [] }
+  if (rdoRow.tokenExpiresAt && rdoRow.tokenExpiresAt < new Date()) return { erro: 'EXPIRADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [] }
+
+  const [obraData] = await db
+    .select({ nome: obras.nome, clienteNome: clientes.nome })
+    .from(obras)
+    .leftJoin(clientes, eq(obras.clienteId, clientes.id))
+    .where(eq(obras.id, rdoRow.obraId))
+    .limit(1)
+
+  const [atividades, funcionarios] = await Promise.all([
+    db.select().from(rdoAtividades).where(eq(rdoAtividades.rdoId, rdoRow.id)),
+    db.select().from(rdoFuncionarios).where(eq(rdoFuncionarios.rdoId, rdoRow.id)),
+  ])
+
+  return {
+    erro: null,
+    rdoRow,
+    obraNome: obraData?.nome ?? '—',
+    clienteNome: obraData?.clienteNome ?? null,
+    atividades,
+    funcionarios,
+  }
+}
+
+export async function aprovarRdoPorToken(token: string, assinaturaCliente: string) {
+  const [rdoRow] = await db
+    .select({ id: rdo.id, status: rdo.status, tokenExpiresAt: rdo.tokenExpiresAt, obraId: rdo.obraId, data: rdo.data, criadoPorId: rdo.criadoPorId })
+    .from(rdo)
+    .where(eq(rdo.linkToken, token))
+    .limit(1)
+
+  if (!rdoRow) throw new Error('Link inválido')
+  if (rdoRow.status !== 'pendente_aprovacao') throw new Error('Este RDO já foi processado')
+  if (rdoRow.tokenExpiresAt && rdoRow.tokenExpiresAt < new Date()) throw new Error('Link expirado')
+
+  await db.update(rdo).set({
+    status: 'aprovado',
+    assinaturaCliente,
+    aprovadoEm: new Date(),
+    linkToken: null,
+    tokenExpiresAt: null,
+    atualizadoEm: new Date(),
+  }).where(eq(rdo.id, rdoRow.id))
+
+  await db.insert(notificacoes).values({
+    usuarioId: rdoRow.criadoPorId,
+    titulo: 'RDO Aprovado',
+    mensagem: `Seu RDO de ${rdoRow.data} foi aprovado pelo cliente.`,
+    tipo: 'rdo_aprovado',
+    referenciaId: rdoRow.id,
+    tabelaReferencia: 'rdo',
+  })
+
+  revalidatePath('/rdo')
+  revalidatePath(`/rdo/${rdoRow.id}`)
+  revalidatePath('/hh')
+}
+
+export async function rejeitarRdoPorToken(token: string, motivoRejeicao: string) {
+  const [rdoRow] = await db
+    .select({ id: rdo.id, status: rdo.status, tokenExpiresAt: rdo.tokenExpiresAt, data: rdo.data, criadoPorId: rdo.criadoPorId })
+    .from(rdo)
+    .where(eq(rdo.linkToken, token))
+    .limit(1)
+
+  if (!rdoRow) throw new Error('Link inválido')
+  if (rdoRow.status !== 'pendente_aprovacao') throw new Error('Este RDO já foi processado')
+  if (rdoRow.tokenExpiresAt && rdoRow.tokenExpiresAt < new Date()) throw new Error('Link expirado')
+
+  await db.update(rdo).set({
+    status: 'rejeitado',
+    motivoRejeicao,
+    linkToken: null,
+    tokenExpiresAt: null,
+    atualizadoEm: new Date(),
+  }).where(eq(rdo.id, rdoRow.id))
+
+  await db.insert(notificacoes).values({
+    usuarioId: rdoRow.criadoPorId,
+    titulo: 'RDO Rejeitado',
+    mensagem: `Seu RDO de ${rdoRow.data} foi rejeitado pelo cliente. Motivo: ${motivoRejeicao}`,
+    tipo: 'rdo_rejeitado',
+    referenciaId: rdoRow.id,
+    tabelaReferencia: 'rdo',
+  })
+
+  revalidatePath('/rdo')
+  revalidatePath(`/rdo/${rdoRow.id}`)
   revalidatePath('/hh')
 }

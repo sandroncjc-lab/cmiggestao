@@ -10,6 +10,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { RdoAcoesCliente } from './rdo-acoes-cliente'
 import { RdoAcoesInterno } from './rdo-acoes-interno'
+import { LinkAprovacao } from './link-aprovacao'
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
   rascunho: { label: 'Rascunho', variant: 'secondary' },
@@ -26,6 +27,7 @@ const climaLabel: Record<string, string> = {
 }
 
 async function carregarRdo(id: string, usuario: NonNullable<Awaited<ReturnType<typeof getUsuarioAtual>>>) {
+  // SELECT * já traz linkToken e tokenExpiresAt (schema atualizado)
   if (isCliente(usuario.funcao) && usuario.clienteId) {
     const [row] = await db
       .select()
@@ -70,6 +72,10 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
   const clienteVendo = isCliente(usuario.funcao)
   const podeAprovar = clienteVendo && rdoData.status === 'pendente_aprovacao'
   const podeEnviar = !clienteVendo && rdoData.status === 'rascunho'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cmiggestao.vercel.app'
+  const linkAprovacao = rdoData.linkToken && rdoData.status === 'pendente_aprovacao' && !clienteVendo
+    ? `${appUrl}/aprovar/${rdoData.linkToken}`
+    : null
 
   const cfg = statusConfig[rdoData.status] ?? { label: rdoData.status, variant: 'secondary' }
 
@@ -212,6 +218,7 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
         </Card>
       )}
 
+      {linkAprovacao && <LinkAprovacao link={linkAprovacao} />}
       {podeAprovar && <RdoAcoesCliente rdoId={id} />}
       {podeEnviar && <RdoAcoesInterno rdoId={id} assinaturaAtual={rdoData.assinaturaInterna} />}
     </div>
