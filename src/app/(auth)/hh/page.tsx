@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Timer, AlertTriangle } from 'lucide-react'
+import { Plus, Timer, AlertTriangle, FileDown } from 'lucide-react'
 
 export default async function HhPage() {
   const [{ obrasList, registros, consumoMap }, usuario] = await Promise.all([
@@ -45,9 +45,20 @@ export default async function HhPage() {
           return (
             <Card key={o.id}>
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <CardTitle className="text-sm font-medium truncate">{o.nome}</CardTitle>
-                  {pct >= 80 && <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {pct >= 80 && <AlertTriangle className="h-4 w-4 text-yellow-500" />}
+                    <a
+                      href={`/api/hh/pdf?obraId=${o.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Baixar relatório PDF de HH"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-muted transition-colors"
+                    >
+                      <FileDown className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                    </a>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">

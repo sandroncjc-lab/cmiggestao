@@ -1,7 +1,7 @@
 import { db } from '@/app/db'
-import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras, clientes, empresas, usuarios } from '@/app/db/schema'
+import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras, clientes, empresas, usuarios, obraResponsaveis } from '@/app/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,16 +29,52 @@ const climaLabel: Record<string, string> = {
 }
 
 async function carregarRdo(id: string, usuario: NonNullable<Awaited<ReturnType<typeof getUsuarioAtual>>>) {
-  // SELECT * já traz linkToken e tokenExpiresAt (schema atualizado)
-  if (isCliente(usuario.funcao) && usuario.clienteId) {
+  if (isCliente(usuario.funcao)) {
+    if (usuario.clienteId) {
+      const [row] = await db
+        .select()
+        .from(rdo)
+        .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.clienteId, usuario.clienteId)))
+        .where(eq(rdo.id, id))
+        .limit(1)
+      if (row) return row.rdo
+    }
+    // Aprovador via obraResponsaveis
+    const atribuicoes = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(eq(obraResponsaveis.usuarioId, usuario.id))
+    const obraIds = atribuicoes.map((a) => a.obraId)
+    if (obraIds.length > 0) {
+      const [row] = await db
+        .select()
+        .from(rdo)
+        .where(and(eq(rdo.id, id)))
+        .limit(1)
+      if (row) return row
+    }
+    return null
+  }
+
+  if (usuario.funcao === 'encarregado') {
+    // Encarregado: só obras atribuídas
+    const atribuicoes = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(eq(obraResponsaveis.usuarioId, usuario.id))
+    const obraIds = atribuicoes.map((a) => a.obraId)
+    if (obraIds.length === 0) return null
     const [row] = await db
       .select()
       .from(rdo)
-      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.clienteId, usuario.clienteId)))
+      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.empresaId, usuario.empresaId)))
       .where(eq(rdo.id, id))
       .limit(1)
-    return row ? row.rdo : null
+    if (!row) return null
+    if (!obraIds.includes(row.rdo.obraId)) return null
+    return row.rdo
   }
+
   const [row] = await db
     .select()
     .from(rdo)
@@ -51,7 +87,7 @@ async function carregarRdo(id: string, usuario: NonNullable<Awaited<ReturnType<t
 export default async function RdoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const usuario = await getUsuarioAtual()
-  if (!usuario) notFound()
+  if (!usuario) redirect('/aguardando')
 
   const rdoData = await carregarRdo(id, usuario)
   if (!rdoData) notFound()
@@ -60,7 +96,7 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
     .select({ nome: obras.nome, clienteId: obras.clienteId, aprovadorClienteId: obras.aprovadorClienteId })
     .from(obras).where(eq(obras.id, rdoData.obraId)).limit(1)
 
-  const [atividades, funcionarios, fotos, rdoServsList, obraComCliente, nomeEmpresa] = await Promise.all([
+  const [atividades, funcionarios, fotos, rdoServsList, obraComCliente, nomeEmpresa, aprovadoresObra, aprovadorInfo] = await Promise.all([
     db.select().from(rdoAtividades).where(eq(rdoAtividades.rdoId, id)),
     db.select().from(rdoFuncionarios).where(eq(rdoFuncionarios.rdoId, id)),
     db.select().from(rdoFotos).where(eq(rdoFotos.rdoId, id)),
@@ -83,6 +119,16 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
       .where(eq(usuarios.id, usuario.id))
       .limit(1)
       .then((r) => r[0]?.nome ?? 'CMI Gestão'),
+    // Aprovadores atribuídos à obra (para modo in loco com conta)
+    db
+      .select({ usuarioId: obraResponsaveis.usuarioId, nome: usuarios.nome, email: usuarios.email })
+      .from(obraResponsaveis)
+      .innerJoin(usuarios, eq(obraResponsaveis.usuarioId, usuarios.id))
+      .where(and(eq(obraResponsaveis.obraId, rdoData.obraId), eq(obraResponsaveis.papel, 'aprovador'))),
+    // Info do aprovador (para exibir quem aprovou)
+    rdoData.aprovadoPorId
+      ? db.select({ nome: usuarios.nome }).from(usuarios).where(eq(usuarios.id, rdoData.aprovadoPorId)).limit(1).then((r) => r[0])
+      : Promise.resolve(null),
   ])
 
   const pdfData: RdoPdfData = {
@@ -95,6 +141,9 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
       assinaturaInterna: rdoData.assinaturaInterna,
       assinaturaCliente: rdoData.assinaturaCliente,
       criadoEm: rdoData.criadoEm.toISOString(),
+      nomeAssinanteExterno: rdoData.nomeAssinanteExterno,
+      cargoAssinanteExterno: rdoData.cargoAssinanteExterno,
+      aprovadoPorNome: aprovadorInfo?.nome ?? null,
     },
     obra: { nome: obraData?.nome ?? '—', clienteNome: obraComCliente.clienteNome },
     empresa: nomeEmpresa,
@@ -245,27 +294,48 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
         </Card>
       )}
 
-      {rdoData.assinaturaInterna && (
-        <Card>
-          <CardHeader><CardTitle>Assinatura Interna</CardTitle></CardHeader>
-          <CardContent>
-            <img src={rdoData.assinaturaInterna} alt="Assinatura interna" className="max-h-24 border border-border rounded" />
-          </CardContent>
-        </Card>
-      )}
+      {/* Assinaturas */}
+      <Card>
+        <CardHeader><CardTitle>Assinaturas e Validação</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          {rdoData.assinaturaInterna ? (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Assinatura Interna (Encarregado)</p>
+              <img src={rdoData.assinaturaInterna} alt="Assinatura interna" className="max-h-24 border border-border rounded" />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">Sem assinatura interna.</p>
+          )}
 
-      {rdoData.assinaturaCliente && (
-        <Card>
-          <CardHeader><CardTitle>Assinatura do Cliente</CardTitle></CardHeader>
-          <CardContent>
-            <img src={rdoData.assinaturaCliente} alt="Assinatura do cliente" className="max-h-24 border border-border rounded" />
-          </CardContent>
-        </Card>
-      )}
+          {rdoData.assinaturaCliente && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">
+                {rdoData.nomeAssinanteExterno
+                  ? `Assinatura Presencial — ${rdoData.nomeAssinanteExterno}${rdoData.cargoAssinanteExterno ? ` (${rdoData.cargoAssinanteExterno})` : ''}`
+                  : aprovadorInfo
+                    ? `Aprovado por ${aprovadorInfo.nome}`
+                    : 'Assinatura do Cliente'}
+              </p>
+              <img src={rdoData.assinaturaCliente} alt="Assinatura do cliente" className="max-h-24 border border-border rounded" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
+      {/* Link de aprovação ativo */}
       {linkAprovacao && <LinkAprovacao link={linkAprovacao} />}
+
+      {/* Ações do cliente */}
       {podeAprovar && <RdoAcoesCliente rdoId={id} />}
-      {podeEnviar && <RdoAcoesInterno rdoId={id} assinaturaAtual={rdoData.assinaturaInterna} />}
+
+      {/* Ações internas (encarregado/admin/engenheiro) — 3 modos */}
+      {podeEnviar && (
+        <RdoAcoesInterno
+          rdoId={id}
+          assinaturaAtual={rdoData.assinaturaInterna}
+          aprovadores={aprovadoresObra}
+        />
+      )}
     </div>
   )
 }
