@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, RotateCcw, Camera, X, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Plus, Trash2, Camera, X, AlertTriangle, CheckCircle2, ClipboardCheck } from 'lucide-react'
 import { criarRdoCompleto } from '@/lib/actions/rdo'
 
 interface Obra {
@@ -24,17 +24,6 @@ interface Atividade { descricao: string; horaInicio: string; horaFim: string; ob
 interface Funcionario { nome: string; funcao: string; horas: string }
 interface ServicoExec { servicoId: string; quantidade: string; observacoes: string }
 
-// Detecta se o canvas tem algum traço (não está em branco)
-function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return true
-  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
-  // O canvas é criado com fundo transparente (alpha=0); qualquer pixel desenhado tem alpha>0
-  for (let i = 3; i < data.length; i += 4) {
-    if (data[i] > 0) return false
-  }
-  return true
-}
 
 export function RdoForm({
   obras,
@@ -68,10 +57,6 @@ export function RdoForm({
   // Step 5 — Fotos
   const [fotos, setFotos] = useState<{ url: string; file: File }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Step 6 — Assinatura
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [drawing, setDrawing] = useState(false)
 
   const obraSelecionada = obras.find((o) => o.id === obraId)
   const servicosDaObra = obraId ? (servicosPorObra[obraId] ?? []) : []
@@ -117,63 +102,10 @@ export function RdoForm({
   }
   function removeFoto(i: number) { setFotos((p) => p.filter((_, idx) => idx !== i)) }
 
-  // ── Canvas ──────────────────────────────────────────────────────────────────
-  function getPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current!
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    if ('touches' in e) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY,
-      }
-    }
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
-  }
-  function startDraw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    e.preventDefault()
-    const ctx = canvasRef.current?.getContext('2d')
-    if (!ctx) return
-    setDrawing(true)
-    const { x, y } = getPos(e)
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-  }
-  function draw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    e.preventDefault()
-    if (!drawing) return
-    const ctx = canvasRef.current?.getContext('2d')
-    if (!ctx) return
-    const { x, y } = getPos(e)
-    ctx.lineTo(x, y)
-    ctx.strokeStyle = '#000'
-    ctx.lineWidth = 2
-    ctx.lineCap = 'round'
-    ctx.stroke()
-  }
-  function stopDraw() { setDrawing(false) }
-  function clearCanvas() {
-    const c = canvasRef.current
-    if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height)
-  }
-
   // ── Submit ──────────────────────────────────────────────────────────────────
-  async function handleSubmit(enviarParaAprovacao: boolean) {
-    if (enviarParaAprovacao) {
-      const canvas = canvasRef.current
-      if (!canvas || isCanvasBlank(canvas)) {
-        toast.error('Desenhe sua assinatura antes de enviar para aprovação')
-        return
-      }
-    }
-
+  async function handleSubmit() {
     setLoading(true)
     try {
-      const assinatura = enviarParaAprovacao
-        ? (canvasRef.current?.toDataURL('image/png') ?? null)
-        : null
-
       const result = await criarRdoCompleto({
         obraId,
         data,
@@ -184,12 +116,12 @@ export function RdoForm({
           .filter((s) => s.servicoId && Number(s.quantidade) > 0)
           .map((s) => ({ servicoId: s.servicoId, quantidade: Number(s.quantidade), observacoes: s.observacoes })),
         fotos: fotos.map((f) => f.url),
-        assinaturaInterna: assinatura,
+        assinaturaInterna: null, // sempre rascunho; assinatura e validação ficam na página de detalhe
       })
 
       if (result.success) {
-        toast.success(enviarParaAprovacao ? 'RDO enviado para aprovação!' : 'RDO salvo como rascunho!')
-        router.push('/rdo')
+        toast.success('RDO salvo! Agora escolha como validar.')
+        router.push(`/rdo/${result.rdoId}`)
       } else {
         toast.error(result.error ?? 'Erro ao salvar RDO')
       }
@@ -198,7 +130,7 @@ export function RdoForm({
     }
   }
 
-  const steps = ['Dados Gerais', 'Atividades', 'Funcionários', 'Serviços', 'Fotos', 'Assinatura']
+  const steps = ['Dados Gerais', 'Atividades', 'Funcionários', 'Serviços', 'Fotos', 'Confirmar']
 
   return (
     <div className="space-y-6">
@@ -546,49 +478,54 @@ export function RdoForm({
         </Card>
       )}
 
-      {/* ── Step 6 — Assinatura ── */}
+      {/* ── Step 6 — Confirmar e Salvar ── */}
       {step === 6 && (
         <Card>
-          <CardHeader><CardTitle>Assinatura do Responsável</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+          <CardHeader><CardTitle>Confirmar e Salvar RDO</CardTitle></CardHeader>
+          <CardContent className="space-y-5">
             <p className="text-sm text-muted-foreground">
-              Assine abaixo para enviar para aprovação do cliente. Ou salve como rascunho e assine depois.
+              Revise os dados abaixo e salve o RDO. Na próxima tela você assina e escolhe como o cliente irá validar.
             </p>
-            <div className="rounded-md border border-input overflow-hidden bg-white">
-              <canvas
-                ref={canvasRef}
-                width={560}
-                height={200}
-                className="w-full touch-none cursor-crosshair"
-                onMouseDown={startDraw}
-                onMouseMove={draw}
-                onMouseUp={stopDraw}
-                onMouseLeave={stopDraw}
-                onTouchStart={startDraw}
-                onTouchMove={draw}
-                onTouchEnd={stopDraw}
-              />
-            </div>
-            <Button variant="outline" size="sm" onClick={clearCanvas}>
-              <RotateCcw className="h-4 w-4 mr-2" />Limpar Assinatura
-            </Button>
-            <div className="flex flex-col sm:flex-row justify-between gap-3 pt-2 border-t">
-              <Button variant="outline" onClick={() => setStep(5)}>Voltar</Button>
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => handleSubmit(false)}
-                  disabled={loading}
-                >
-                  {loading ? 'Salvando...' : 'Salvar Rascunho'}
-                </Button>
-                <Button
-                  onClick={() => handleSubmit(true)}
-                  disabled={loading}
-                >
-                  {loading ? 'Enviando...' : 'Assinar e Enviar para Aprovação'}
-                </Button>
+
+            {/* Resumo */}
+            <div className="rounded-lg border border-border divide-y divide-border text-sm">
+              <div className="flex justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">Obra</span>
+                <span className="font-medium">{obraSelecionada?.nome ?? '—'}</span>
               </div>
+              <div className="flex justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">Data</span>
+                <span className="font-medium">{data}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">Clima</span>
+                <span className="font-medium capitalize">{clima}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">Atividades</span>
+                <span className="font-medium">{atividades.filter((a) => a.descricao.trim()).length}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">Funcionários</span>
+                <span className="font-medium">{funcionarios.filter((f) => f.nome.trim()).length}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">Fotos</span>
+                <span className="font-medium">{fotos.length}</span>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-700 dark:text-blue-400">
+              <p className="font-medium mb-0.5">O que acontece ao salvar?</p>
+              <p>O RDO é salvo como rascunho. Você será levado à tela do RDO onde poderá <strong>assinar e escolher o modo de validação</strong>: link por WhatsApp, assinatura in loco com conta, ou assinatura in loco sem cadastro.</p>
+            </div>
+
+            <div className="flex justify-between pt-1">
+              <Button variant="outline" onClick={() => setStep(5)}>Voltar</Button>
+              <Button onClick={handleSubmit} disabled={loading}>
+                <ClipboardCheck className="h-4 w-4 mr-2" />
+                {loading ? 'Salvando...' : 'Salvar e ir para validação'}
+              </Button>
             </div>
           </CardContent>
         </Card>
