@@ -12,7 +12,11 @@ const isPublicRoute = createRouteMatcher([
 export default clerkMiddleware(async (auth, request) => {
   const { userId } = await auth()
 
-  if (userId && isPublicRoute(request)) {
+  // Redireciona usuário logado que acessa sign-in/sign-up para o dashboard,
+  // MAS NÃO redireciona /aprovar (aprovação remota deve ser acessível a qualquer um)
+  const url = new URL(request.url)
+  const isAuthPage = url.pathname.startsWith('/sign-in') || url.pathname.startsWith('/sign-up')
+  if (userId && isAuthPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

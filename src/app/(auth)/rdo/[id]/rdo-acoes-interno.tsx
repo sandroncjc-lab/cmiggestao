@@ -3,9 +3,10 @@
 import { useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Send } from 'lucide-react'
+import { Send, Copy, CheckCheck } from 'lucide-react'
 import { enviarRdoParaAprovacao } from '@/lib/actions/rdo'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
   const ctx = canvas.getContext('2d')
@@ -42,6 +43,8 @@ export function RdoAcoesInterno({ rdoId, assinaturaAtual }: { rdoId: string; ass
   const [drawing, setDrawing] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [linkGerado, setLinkGerado] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
 
   function startDraw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
     e.preventDefault()
@@ -85,8 +88,16 @@ export function RdoAcoesInterno({ rdoId, assinaturaAtual }: { rdoId: string; ass
     setError('')
     const assinatura = canvas.toDataURL('image/png')
     startTransition(async () => {
-      await enviarRdoParaAprovacao(rdoId, assinatura)
-      router.push('/rdo')
+      const result = await enviarRdoParaAprovacao(rdoId, assinatura)
+      if (!result.success) {
+        setError(result.error ?? 'Erro ao enviar para aprovação.')
+        toast.error(result.error ?? 'Erro ao enviar para aprovação.')
+        return
+      }
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cmiggestao.vercel.app'
+      const link = `${appUrl}/aprovar/${result.linkToken}`
+      setLinkGerado(link)
+      toast.success('RDO enviado! Copie o link de aprovação abaixo.')
     })
   }
 
@@ -120,10 +131,39 @@ export function RdoAcoesInterno({ rdoId, assinaturaAtual }: { rdoId: string; ass
           <Button variant="ghost" size="sm" className="mt-1" onClick={clearCanvas}>Limpar</Button>
         </div>
 
-        <Button onClick={handleEnviar} disabled={isPending}>
-          <Send className="h-4 w-4 mr-2" />
-          {isPending ? 'Enviando...' : 'Enviar para Aprovação do Cliente'}
-        </Button>
+        {!linkGerado && (
+          <Button onClick={handleEnviar} disabled={isPending}>
+            <Send className="h-4 w-4 mr-2" />
+            {isPending ? 'Enviando...' : 'Enviar para Aprovação do Cliente'}
+          </Button>
+        )}
+
+        {linkGerado && (
+          <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-4">
+            <p className="text-sm font-medium text-green-800">✅ RDO enviado para aprovação!</p>
+            <p className="text-xs text-green-700">Copie o link e envie ao cliente (WhatsApp, e-mail, etc.):</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 break-all rounded bg-white border border-green-200 px-2 py-1.5 text-xs text-slate-700">
+                {linkGerado}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => {
+                  navigator.clipboard.writeText(linkGerado)
+                  setCopiado(true)
+                  setTimeout(() => setCopiado(false), 2000)
+                }}
+              >
+                {copiado ? <CheckCheck className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" className="w-full" onClick={() => router.push('/rdo')}>
+              Voltar para lista de RDOs
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

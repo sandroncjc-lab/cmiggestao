@@ -191,6 +191,7 @@ export async function adicionarFotosRdo(rdoId: string, urls: string[], legenda?:
 }
 
 export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: string) {
+  try {
   const usuario = await getUsuarioOuErro()
   if (isCliente(usuario.funcao)) throw new Error('Acesso negado')
   await verificarOwnershipRdo(id, usuario)
@@ -269,6 +270,12 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
   revalidatePath('/rdo')
   revalidatePath(`/rdo/${id}`)
   revalidatePath('/hh')
+  return { success: true as const, linkToken }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro ao enviar RDO para aprovação'
+    console.error('[enviarRdoParaAprovacao] Erro:', err)
+    return { success: false as const, error: msg }
+  }
 }
 
 function emailAprovacaoHtml({ clienteNome, obraNome, data, link }: {
