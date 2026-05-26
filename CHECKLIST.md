@@ -96,20 +96,50 @@ Mesmas variáveis acima. Atenção:
 
 ---
 
-## 🔄 Série de Itens 2026-05 (em andamento)
+## ✅ Série de Itens 2026-05 — CONCLUÍDA (2026-05-26)
 
-### ITEM 1 — Tela de Usuários mostra todos ✅ build OK, aguardando teste
+### ITEM 1 — Tela de Usuários mostra todos ✅
 - [x] Migração `0006_pending_users.sql`: enum `funcao_usuario` ganha `'pendente'`; `empresa_id` vira nullable
 - [x] Schema Drizzle atualizado (funcaoUsuarioEnum + empresaId nullable)
-- [x] `getUsuario.ts`: `getUsuarioAtual`, `getUsuarioOuErro`, `getEmpresaIdOuErro` tratam usuários pendentes (throw `UsuarioPendenteError`)
-- [x] Webhook `user.created`: auto-cadastros sem convite criam row `funcao='pendente'` no banco
-- [x] `UsuariosPage`: lista separada pendentes (card âmbar no topo) + ativos; apenas admin/engenheiro acessa
+- [x] `getUsuario.ts`: trata usuários pendentes
+- [x] Webhook `user.created`: auto-cadastros criam row `funcao='pendente'`
+- [x] `UsuariosPage`: pendentes separados + ativos; apenas admin/engenheiro acessa
 - [x] Build OK — zero erros TypeScript
 
-### ITEM 2 — Atribuição de responsáveis 🔲 aguardando OK do ITEM 1
-### ITEM 3 — Permissões aplicadas 🔲 aguardando ITEM 2
-### ITEM 4 — Três formas de validação do RDO 🔲 aguardando ITEM 3
-### ITEM 5 — PDF após qualquer validação 🔲 aguardando ITEM 4
+### ITEM A — Atribuição de responsáveis ✅
+- [x] Migração `0007_obra_responsaveis.sql`: tabela `obra_responsaveis` (N:N), enum `papel_responsavel`, migra dados existentes de `aprovadorClienteId` e `responsavelInternoId`
+- [x] Schema Drizzle: tabela `obraResponsaveis` com `papelResponsavelEnum`
+- [x] Actions: `atribuirResponsavel`, `atribuirClienteInteiro`, `removerResponsavel`, `getObrasAtribuidasIds`, `isUsuarioAtribuidoObra`
+- [x] Form `/usuarios/[id]/editar`: toggle "Obras específicas" / "Cliente inteiro"; atribuição de pendente tira do estado pendente
+- [x] Build OK
+
+### ITEM B — Permissões aplicadas ✅
+- [x] `listarRdos`: encarregado filtra por obras atribuídas via `obraResponsaveis`
+- [x] `criarRdoCompleto`: encarregado só cria RDO de obras atribuídas
+- [x] RDO detail page: encarregado/aprovador filtrado por `obraResponsaveis`
+- [x] Sem 404: `redirect('/aguardando')` para acessos não autorizados
+- [x] Admin/engenheiro: acesso total à empresa
+
+### ITEM C — Três formas de validação do RDO ✅
+- [x] Migração `0008_rdo_assinatura_externa.sql`: campos `nome_assinante_externo`, `cargo_assinante_externo` no DB
+- [x] Schema: `nomeAssinanteExterno`, `cargoAssinanteExterno` em `rdo`
+- [x] Action `assinarInLocoComConta`: aprovador presente assina no aparelho do encarregado; registra `aprovadoPorId`
+- [x] Action `assinarInLocoSemConta`: nome + cargo + canvas; salva em campos externos
+- [x] `rdo-acoes-interno.tsx`: 3 modos com tabs (Link, In loco c/ conta, In loco s/ conta)
+- [x] RDO detail page: carrega aprovadores da obra; mostra identidade do assinante
+- [x] Modo link (existente): mantido; geração e exibição do link de aprovação
+
+### ITEM D — PDF ✅
+- [x] `rdo-pdf.tsx`: exibe nome do assinante externo ou aprovadoPorNome na seção de assinaturas
+- [x] `RdoPdfData`: campos `nomeAssinanteExterno`, `cargoAssinanteExterno`, `aprovadoPorNome`
+- [x] **NOVO** `/api/hh/pdf?obraId=...`: PDF de controle de horas (HH)
+  - Barra de progresso visual (verde/amarelo/vermelho)
+  - Cards: Total Contratado, Consumido (%), Saldo Disponível
+  - Tabela de lançamentos por RDO (fonte oficial do saldo)
+  - Tabela de registros manuais
+  - Acessível para admin/engenheiro e cliente dono do contrato
+- [x] Botão `FileDown` em cada card de obra na tela `/hh`
+- [x] Build OK — zero erros TypeScript, 35 rotas compiladas
 
 ---
 
