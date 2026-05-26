@@ -18,6 +18,7 @@ export const funcaoUsuarioEnum = pgEnum('funcao_usuario', [
   'engenheiro',
   'encarregado',
   'aprovador_cliente',
+  'pendente', // usuário auto-cadastrado aguardando atribuição de papel
 ])
 
 export const statusObraEnum = pgEnum('status_obra', [
@@ -88,9 +89,8 @@ export const usuarios = pgTable('usuarios', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   senhaHash: text('senha_hash'),
   funcao: funcaoUsuarioEnum('funcao').notNull(),
-  empresaId: uuid('empresa_id')
-    .notNull()
-    .references(() => empresas.id),
+  // Nullable: usuários pendentes de atribuição não têm empresa ainda
+  empresaId: uuid('empresa_id').references(() => empresas.id),
   clienteId: uuid('cliente_id').references(() => clientes.id),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),

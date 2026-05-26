@@ -9,11 +9,22 @@ export class NaoAutenticadoError extends Error {
 }
 export class SemRegistroError extends Error {
   constructor(clerkId: string) {
-    super(`Usuário autenticado no Clerk (${clerkId}) mas sem registro na tabela usuarios. Execute o seed ou cadastre o usuário.`)
+    super(`Usuário autenticado no Clerk (${clerkId}) mas sem registro na tabela usuarios.`)
   }
 }
+export class UsuarioPendenteError extends Error {
+  constructor() { super('Usuário pendente de atribuição de papel e empresa.') }
+}
 
-export async function getUsuarioAtual() {
+// Tipo do usuário ativo (garantidamente com empresa e papel)
+export type UsuarioAtivo = {
+  id: string
+  empresaId: string   // string (não null) — garantido pelo throw
+  funcao: string
+  clienteId: string | null
+}
+
+export async function getUsuarioAtual(): Promise<UsuarioAtivo | null> {
   const { userId } = await auth()
   if (!userId) return null
 
@@ -28,25 +39,29 @@ export async function getUsuarioAtual() {
     .where(eq(usuarios.clerkId, userId))
     .limit(1)
 
-  return usuario ?? null
+  if (!usuario) return null
+  // Usuário pendente: sem empresa ou sem papel definido
+  if (!usuario.empresaId || usuario.funcao === 'pendente') return null
+
+  return { ...usuario, empresaId: usuario.empresaId }
 }
 
 /**
  * Retorna o empresaId do usuário logado.
- * Lança NaoAutenticadoError se não houver sessão Clerk.
- * Lança SemRegistroError se o usuário existe no Clerk mas não na tabela usuarios.
+ * Lança se não houver sessão, se não houver registro, ou se o usuário for pendente.
  */
 export async function getEmpresaIdOuErro(): Promise<string> {
   const { userId } = await auth()
   if (!userId) throw new NaoAutenticadoError()
 
   const [usuario] = await db
-    .select({ id: usuarios.id, empresaId: usuarios.empresaId })
+    .select({ id: usuarios.id, empresaId: usuarios.empresaId, funcao: usuarios.funcao })
     .from(usuarios)
     .where(eq(usuarios.clerkId, userId))
     .limit(1)
 
   if (!usuario) throw new SemRegistroError(userId)
+  if (!usuario.empresaId || usuario.funcao === 'pendente') throw new UsuarioPendenteError()
 
   return usuario.empresaId
 }
@@ -55,7 +70,7 @@ export async function getEmpresaIdOuErro(): Promise<string> {
  * Versão que retorna o usuário completo ou lança erro tipado.
  * Use quando precisar de funcao/clienteId além do empresaId.
  */
-export async function getUsuarioOuErro() {
+export async function getUsuarioOuErro(): Promise<UsuarioAtivo> {
   const { userId } = await auth()
   if (!userId) throw new NaoAutenticadoError()
 
@@ -71,8 +86,9 @@ export async function getUsuarioOuErro() {
     .limit(1)
 
   if (!usuario) throw new SemRegistroError(userId)
+  if (!usuario.empresaId || usuario.funcao === 'pendente') throw new UsuarioPendenteError()
 
-  return usuario
+  return { ...usuario, empresaId: usuario.empresaId }
 }
 
 export function isCliente(funcao: string) {

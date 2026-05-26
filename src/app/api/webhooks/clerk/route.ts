@@ -82,15 +82,22 @@ export async function POST(req: Request) {
     .where(and(eq(usuarios.email, primaryEmail), isNull(usuarios.clerkId)))
     .limit(1)
 
+  const nomeCompleto = [first_name, last_name].filter(Boolean).join(' ') || primaryEmail
+
   if (!pendente) {
-    // Usuário não tem linha pendente (pode já ter clerkId ou não ser aprovador do sistema)
-    console.info('[webhook/clerk] nenhuma linha pendente para:', primaryEmail)
+    // Auto-cadastro (sem convite): cria row pendente de atribuição pelo admin
+    await db.insert(usuarios).values({
+      clerkId,
+      email: primaryEmail,
+      nome: nomeCompleto,
+      funcao: 'pendente',
+      // empresaId: null — preenchido pelo admin depois
+    })
+    console.info('[webhook/clerk] usuário pendente criado:', primaryEmail, clerkId)
     return new Response('OK', { status: 200 })
   }
 
-  // Preenche o clerkId e atualiza nome se necessário
-  const nomeCompleto = [first_name, last_name].filter(Boolean).join(' ') || undefined
-
+  // Convite existente: preenche o clerkId e atualiza nome se necessário
   await db
     .update(usuarios)
     .set({

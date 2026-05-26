@@ -94,10 +94,27 @@ Mesmas variáveis acima. Atenção:
 
 ---
 
+---
+
+## 🔄 Série de Itens 2026-05 (em andamento)
+
+### ITEM 1 — Tela de Usuários mostra todos ✅ build OK, aguardando teste
+- [x] Migração `0006_pending_users.sql`: enum `funcao_usuario` ganha `'pendente'`; `empresa_id` vira nullable
+- [x] Schema Drizzle atualizado (funcaoUsuarioEnum + empresaId nullable)
+- [x] `getUsuario.ts`: `getUsuarioAtual`, `getUsuarioOuErro`, `getEmpresaIdOuErro` tratam usuários pendentes (throw `UsuarioPendenteError`)
+- [x] Webhook `user.created`: auto-cadastros sem convite criam row `funcao='pendente'` no banco
+- [x] `UsuariosPage`: lista separada pendentes (card âmbar no topo) + ativos; apenas admin/engenheiro acessa
+- [x] Build OK — zero erros TypeScript
+
+### ITEM 2 — Atribuição de responsáveis 🔲 aguardando OK do ITEM 1
+### ITEM 3 — Permissões aplicadas 🔲 aguardando ITEM 2
+### ITEM 4 — Três formas de validação do RDO 🔲 aguardando ITEM 3
+### ITEM 5 — PDF após qualquer validação 🔲 aguardando ITEM 4
+
+---
+
 ## Próximos passos sugeridos
 
 - [ ] Página de edição de contrato (`/contratos/[id]/editar`) com campo `tipo`
-- [ ] Aviso no RDO quando obra não tem contrato `homem_hora` (informativo)
-- [ ] PDF do RDO (atividades, funcionários, fotos, assinaturas)
-- [ ] Aprovação remota do RDO (cliente ausente)
-- [ ] Envio de e-mail com PDF após aprovação
+- [ ] Upload de fotos no RDO (Vercel Blob)
+- [ ] Envio de e-mail com PDF após aprovação (RESEND_API_KEY)
