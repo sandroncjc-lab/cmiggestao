@@ -1,12 +1,13 @@
 'use server'
 
 import { db } from '@/app/db'
-import { usuarios } from '@/app/db/schema'
+import { usuarios, empresas } from '@/app/db/schema'
+import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
+import { getEmpresaIdOuErro, getUsuarioOuErro } from '@/lib/server/getUsuario'
 import { clerkClient } from '@clerk/nextjs/server'
 
-type FuncaoInterna = 'admin' | 'engenheiro' | 'encarregado'
+type FuncaoInterna = 'admin' | 'engenheiro' | 'encarregado' | 'aprovador_cliente'
 
 export async function criarUsuarioInterno(
   _prevState: unknown,
@@ -62,4 +63,60 @@ export async function criarUsuarioInterno(
     const msg = err instanceof Error ? err.message : 'Erro ao criar usuário'
     return { success: false, error: msg }
   }
+}
+
+export async function carregarUsuarioParaEdicao(id: string) {
+  const admin = await getUsuarioOuErro()
+  if (admin.funcao !== 'admin' && admin.funcao !== 'engenheiro') {
+    throw new Error('Acesso negado')
+  }
+  const [usuario] = await db
+    .select({
+      id: usuarios.id,
+      nome: usuarios.nome,
+      email: usuarios.email,
+      funcao: usuarios.funcao,
+      empresaId: usuarios.empresaId,
+    })
+    .from(usuarios)
+    .where(eq(usuarios.id, id))
+    .limit(1)
+
+  if (!usuario) return null
+
+  const todasEmpresas = await db.select({ id: empresas.id, nome: empresas.nome }).from(empresas)
+  return { usuario, empresas: todasEmpresas }
+}
+
+export async function atualizarUsuario(
+  _prevState: unknown,
+  formData: FormData,
+): Promise<{ success: boolean; error?: string }> {
+  const admin = await getUsuarioOuErro()
+  if (admin.funcao !== 'admin' && admin.funcao !== 'engenheiro') {
+    return { success: false, error: 'Acesso negado' }
+  }
+
+  const id       = (formData.get('id') as string)?.trim()
+  const nome     = (formData.get('nome') as string)?.trim()
+  const funcao   = (formData.get('funcao') as FuncaoInterna)
+  const empresaId = (formData.get('empresaId') as string)?.trim() || null
+
+  if (!id || !nome || !funcao) {
+    return { success: false, error: 'Campos obrigatórios ausentes' }
+  }
+  const funcoesValidas = ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente']
+  if (!funcoesValidas.includes(funcao)) {
+    return { success: false, error: 'Função inválida' }
+  }
+
+  await db.update(usuarios).set({
+    nome,
+    funcao,
+    empresaId: empresaId || null,
+    atualizadoEm: new Date(),
+  }).where(eq(usuarios.id, id))
+
+  revalidatePath('/usuarios')
+  return { success: true }
 }
