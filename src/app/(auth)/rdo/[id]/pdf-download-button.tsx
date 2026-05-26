@@ -18,6 +18,9 @@ export interface RdoPdfData {
     assinaturaInterna: string | null
     assinaturaCliente: string | null
     criadoEm: string // string para sobreviver serialização server→client
+    nomeAssinanteExterno?: string | null
+    cargoAssinanteExterno?: string | null
+    aprovadoPorNome?: string | null
   }
   obra: { nome: string; clienteNome: string | null }
   empresa: string

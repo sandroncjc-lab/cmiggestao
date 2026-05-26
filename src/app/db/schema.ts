@@ -13,6 +13,8 @@ import {
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
+export const papelResponsavelEnum = pgEnum('papel_responsavel', ['encarregado', 'aprovador'])
+
 export const funcaoUsuarioEnum = pgEnum('funcao_usuario', [
   'admin',
   'engenheiro',
@@ -147,6 +149,9 @@ export const rdo = pgTable('rdo', {
   motivoRejeicao: text('motivo_rejeicao'),
   linkToken: varchar('link_token', { length: 64 }).unique(),
   tokenExpiresAt: timestamp('token_expires_at'),
+  // Assinatura in loco sem conta (Item C — Modo 3)
+  nomeAssinanteExterno: varchar('nome_assinante_externo', { length: 255 }),
+  cargoAssinanteExterno: varchar('cargo_assinante_externo', { length: 100 }),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
 })
@@ -335,6 +340,16 @@ export const epis = pgTable('epis', {
   empresaId: uuid('empresa_id').references(() => empresas.id),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
+})
+
+// ─── Obra Responsáveis (junção N:N) ──────────────────────────────────────────
+
+export const obraResponsaveis = pgTable('obra_responsaveis', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  obraId: uuid('obra_id').notNull().references(() => obras.id, { onDelete: 'cascade' }),
+  usuarioId: uuid('usuario_id').notNull().references(() => usuarios.id, { onDelete: 'cascade' }),
+  papel: papelResponsavelEnum('papel').notNull(),
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
 })
 
 // ─── Endereços de Obras (normalização) ───────────────────────────────────────

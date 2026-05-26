@@ -119,6 +119,9 @@ interface RdoPdfProps {
     assinaturaInterna: string | null
     assinaturaCliente: string | null
     criadoEm: Date | string
+    nomeAssinanteExterno?: string | null
+    cargoAssinanteExterno?: string | null
+    aprovadoPorNome?: string | null
   }
   obra: { nome: string; clienteNome: string | null }
   empresa: string
@@ -281,16 +284,22 @@ export function RdoPdf({ rdo, obra, empresa, atividades, funcionarios, servicos,
 
         {/* ── Assinaturas ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Assinaturas</Text>
+          <Text style={s.sectionTitle}>Assinaturas e Validação</Text>
           <View style={s.sigRow}>
             <View style={s.sigBox}>
-              <Text style={s.sigLabel}>Responsável Interno</Text>
+              <Text style={s.sigLabel}>Responsável Interno (Encarregado)</Text>
               {rdo.assinaturaInterna
                 ? <Image src={rdo.assinaturaInterna} style={s.sigImg} />
                 : <View style={s.sigEmpty} />}
             </View>
             <View style={s.sigBox}>
-              <Text style={s.sigLabel}>Aprovação do Cliente</Text>
+              <Text style={s.sigLabel}>
+                {rdo.nomeAssinanteExterno
+                  ? `Assinatura Presencial — ${rdo.nomeAssinanteExterno}${rdo.cargoAssinanteExterno ? ` (${rdo.cargoAssinanteExterno})` : ''}`
+                  : rdo.aprovadoPorNome
+                    ? `Aprovado por ${rdo.aprovadoPorNome}`
+                    : 'Aprovação do Cliente'}
+              </Text>
               {rdo.assinaturaCliente
                 ? <Image src={rdo.assinaturaCliente} style={s.sigImg} />
                 : <View style={s.sigEmpty} />}

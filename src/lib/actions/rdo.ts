@@ -1,30 +1,79 @@
 'use server'
 
 import { db } from '@/app/db'
-import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, notificacoes, obras, usuarios, clientes } from '@/app/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, notificacoes, obras, usuarios, clientes, obraResponsaveis } from '@/app/db/schema'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getUsuarioAtual, getUsuarioOuErro, isCliente } from '@/lib/server/getUsuario'
 import { verificarOwnershipObra } from '@/lib/auth/ownership'
 import { randomBytes } from 'crypto'
 
-// ─── helpers internos ────────────────────────────────────────────────────────
+// ─── helpers de permissão ─────────────────────────────────────────────────────
 
+/** Retorna IDs das obras atribuídas ao usuário em `obraResponsaveis` */
+async function getObrasAtribuidasIds(usuarioId: string): Promise<string[]> {
+  const rows = await db
+    .select({ obraId: obraResponsaveis.obraId })
+    .from(obraResponsaveis)
+    .where(eq(obraResponsaveis.usuarioId, usuarioId))
+  return rows.map((r) => r.obraId)
+}
+
+/** Verifica se o usuário (encarregado/aprovador) está atribuído à obra */
+async function assertAtribuicaoObra(usuarioId: string, obraId: string) {
+  const [row] = await db
+    .select({ id: obraResponsaveis.id })
+    .from(obraResponsaveis)
+    .where(and(eq(obraResponsaveis.usuarioId, usuarioId), eq(obraResponsaveis.obraId, obraId)))
+    .limit(1)
+  if (!row) throw new Error('Acesso negado: você não está atribuído a esta obra')
+}
+
+/** Verifica acesso ao RDO considerando o papel do usuário */
 async function verificarOwnershipRdo(
   rdoId: string,
   usuario: { id: string; empresaId: string; funcao: string; clienteId: string | null },
 ) {
   if (isCliente(usuario.funcao)) {
-    if (!usuario.clienteId) throw new Error('Acesso negado')
-    const [row] = await db
-      .select({ id: rdo.id })
-      .from(rdo)
-      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.clienteId, usuario.clienteId)))
-      .where(eq(rdo.id, rdoId))
-      .limit(1)
-    if (!row) throw new Error('Acesso negado: RDO não pertence ao seu cliente')
-    return row
+    // Aprovador com clienteId (legado) OU atribuído via obraResponsaveis
+    if (usuario.clienteId) {
+      const [row] = await db
+        .select({ id: rdo.id })
+        .from(rdo)
+        .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.clienteId, usuario.clienteId)))
+        .where(eq(rdo.id, rdoId))
+        .limit(1)
+      if (row) return row
+    }
+    // Verifica via obraResponsaveis
+    const obraIds = await getObrasAtribuidasIds(usuario.id)
+    if (obraIds.length > 0) {
+      const [row] = await db
+        .select({ id: rdo.id })
+        .from(rdo)
+        .where(and(eq(rdo.id, rdoId), inArray(rdo.obraId, obraIds)))
+        .limit(1)
+      if (row) return row
+    }
+    throw new Error('Acesso negado: RDO não pertence ao seu cliente/atribuição')
   }
+
+  if (usuario.funcao === 'encarregado') {
+    // Encarregado só vê RDOs de obras atribuídas a ele
+    const obraIds = await getObrasAtribuidasIds(usuario.id)
+    if (obraIds.length > 0) {
+      const [row] = await db
+        .select({ id: rdo.id })
+        .from(rdo)
+        .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.empresaId, usuario.empresaId)))
+        .where(and(eq(rdo.id, rdoId), inArray(rdo.obraId, obraIds)))
+        .limit(1)
+      if (row) return row
+    }
+    throw new Error('Acesso negado: você não está atribuído a esta obra')
+  }
+
+  // Admin / engenheiro: acesso por empresaId
   const [row] = await db
     .select({ id: rdo.id })
     .from(rdo)
@@ -41,12 +90,20 @@ export async function listarRdos() {
   const usuario = await getUsuarioAtual()
   if (!usuario) return []
 
-  if (isCliente(usuario.funcao) && usuario.clienteId) {
-    const obrasDoCliente = await db
-      .select({ id: obras.id })
-      .from(obras)
-      .where(eq(obras.clienteId, usuario.clienteId))
-    const obraIds = obrasDoCliente.map((o) => o.id)
+  if (isCliente(usuario.funcao)) {
+    // Aprovador_cliente: por clienteId (legado) OU por obraResponsaveis
+    let obraIds: string[] = []
+
+    if (usuario.clienteId) {
+      const obrasDoCliente = await db
+        .select({ id: obras.id })
+        .from(obras)
+        .where(eq(obras.clienteId, usuario.clienteId))
+      obraIds = obrasDoCliente.map((o) => o.id)
+    } else {
+      obraIds = await getObrasAtribuidasIds(usuario.id)
+    }
+
     if (obraIds.length === 0) return []
     return db
       .select({ id: rdo.id, data: rdo.data, status: rdo.status, clima: rdo.clima, obraId: rdo.obraId, obraNome: obras.nome })
@@ -56,6 +113,19 @@ export async function listarRdos() {
       .orderBy(rdo.data)
   }
 
+  if (usuario.funcao === 'encarregado') {
+    // Encarregado: só obras atribuídas
+    const obraIds = await getObrasAtribuidasIds(usuario.id)
+    if (obraIds.length === 0) return []
+    return db
+      .select({ id: rdo.id, data: rdo.data, status: rdo.status, clima: rdo.clima, obraId: rdo.obraId, obraNome: obras.nome })
+      .from(rdo)
+      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.empresaId, usuario.empresaId)))
+      .where(inArray(rdo.obraId, obraIds))
+      .orderBy(rdo.data)
+  }
+
+  // Admin / engenheiro: tudo da empresa
   return db
     .select({ id: rdo.id, data: rdo.data, status: rdo.status, clima: rdo.clima, obraId: rdo.obraId, obraNome: obras.nome })
     .from(rdo)
@@ -85,9 +155,13 @@ export async function criarRdoCompleto(dados: {
 
     await verificarOwnershipObra(obraId, usuario.empresaId)
 
+    // ITEM B: encarregado só pode criar RDO de obras atribuídas
+    if (usuario.funcao === 'encarregado') {
+      await assertAtribuicaoObra(usuario.id, obraId)
+    }
+
     const rdoId = crypto.randomUUID()
 
-    // Insere o RDO — status inicial sempre rascunho
     await db.insert(rdo).values({
       id: rdoId,
       obraId,
@@ -98,7 +172,6 @@ export async function criarRdoCompleto(dados: {
       assinaturaInterna: assinaturaInterna || null,
     })
 
-    // Atividades
     const atividadesValidas = atividades.filter((a) => a.descricao.trim())
     if (atividadesValidas.length > 0) {
       await db.insert(rdoAtividades).values(atividadesValidas.map((a) => ({
@@ -110,7 +183,6 @@ export async function criarRdoCompleto(dados: {
       })))
     }
 
-    // Funcionários
     const funcionariosValidos = funcionarios.filter((f) => f.nome.trim())
     if (funcionariosValidos.length > 0) {
       await db.insert(rdoFuncionarios).values(funcionariosValidos.map((f) => ({
@@ -121,7 +193,6 @@ export async function criarRdoCompleto(dados: {
       })))
     }
 
-    // Serviços executados
     const servicosValidos = servicos.filter((s) => s.servicoId && s.quantidade > 0)
     if (servicosValidos.length > 0) {
       await db.insert(rdoServicos).values(servicosValidos.map((s) => ({
@@ -132,7 +203,6 @@ export async function criarRdoCompleto(dados: {
       })))
     }
 
-    // Fotos
     if (fotos.length > 0) {
       await db.insert(rdoFotos).values(fotos.map((url) => ({
         rdoId,
@@ -142,7 +212,7 @@ export async function criarRdoCompleto(dados: {
       })))
     }
 
-    // Se há assinatura interna, move para pendente_aprovacao e notifica o aprovador
+    // Se há assinatura interna, move para pendente_aprovacao
     if (assinaturaInterna) {
       await db
         .update(rdo)
@@ -196,9 +266,8 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
   if (isCliente(usuario.funcao)) throw new Error('Acesso negado')
   await verificarOwnershipRdo(id, usuario)
 
-  // Gera token seguro para aprovação remota (Modo B)
   const linkToken = randomBytes(32).toString('hex')
-  const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dias
+  const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
   await db.update(rdo).set({
     status: 'pendente_aprovacao',
@@ -224,7 +293,6 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
       .limit(1)
 
     if (obraData?.aprovadorClienteId) {
-      // Notificação interna (Modo A — aprovador tem conta no sistema)
       await db.insert(notificacoes).values({
         usuarioId: obraData.aprovadorClienteId,
         titulo: 'RDO aguardando sua aprovação',
@@ -235,7 +303,24 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
       })
     }
 
-    // Modo B — envia e-mail com link de aprovação (se Resend configurado)
+    // Notifica também aprovadores via obraResponsaveis
+    const aprovadoresObra = await db
+      .select({ usuarioId: obraResponsaveis.usuarioId })
+      .from(obraResponsaveis)
+      .where(and(eq(obraResponsaveis.obraId, rdoRow.obraId), eq(obraResponsaveis.papel, 'aprovador')))
+
+    for (const apr of aprovadoresObra) {
+      if (apr.usuarioId === obraData?.aprovadorClienteId) continue // já notificado acima
+      await db.insert(notificacoes).values({
+        usuarioId: apr.usuarioId,
+        titulo: 'RDO aguardando sua aprovação',
+        mensagem: `RDO da obra "${obraData?.nome ?? ''}" de ${rdoRow.data} aguarda aprovação.`,
+        tipo: 'rdo_pendente',
+        referenciaId: id,
+        tabelaReferencia: 'rdo',
+      }).catch(() => {}) // ignora erros individuais
+    }
+
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cmiggestao.vercel.app'
     const linkAprovacao = `${appUrl}/aprovar/${linkToken}`
 
@@ -261,7 +346,6 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
           })
         }
       } catch (e) {
-        // Falha no e-mail não bloqueia o fluxo
         console.error('Erro ao enviar e-mail de aprovação:', e)
       }
     }
@@ -278,39 +362,125 @@ export async function enviarRdoParaAprovacao(id: string, assinaturaInterna: stri
   }
 }
 
-function emailAprovacaoHtml({ clienteNome, obraNome, data, link }: {
-  clienteNome: string; obraNome: string; data: string; link: string
-}) {
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:Arial,sans-serif;background:#f8fafc;margin:0;padding:32px">
-  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
-    <div style="background:#1e40af;padding:24px 32px">
-      <h1 style="color:#fff;margin:0;font-size:20px">CMI Gestão de Obras</h1>
-    </div>
-    <div style="padding:32px">
-      <p style="color:#334155;margin:0 0 16px">Olá, <strong>${clienteNome}</strong>!</p>
-      <p style="color:#334155;margin:0 0 24px">
-        Um Relatório Diário de Obra está aguardando sua aprovação:
-      </p>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
-        <tr><td style="padding:8px 12px;background:#f1f5f9;color:#64748b;font-size:13px;border-radius:4px 0 0 4px">Obra</td>
-            <td style="padding:8px 12px;font-weight:bold;color:#1e293b;font-size:13px">${obraNome}</td></tr>
-        <tr><td style="padding:8px 12px;background:#f1f5f9;color:#64748b;font-size:13px">Data</td>
-            <td style="padding:8px 12px;font-weight:bold;color:#1e293b;font-size:13px">${data}</td></tr>
-      </table>
-      <a href="${link}" style="display:inline-block;background:#1e40af;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
-        Ver RDO e Aprovar →
-      </a>
-      <p style="color:#94a3b8;font-size:12px;margin:24px 0 0">
-        Este link expira em 7 dias. Se não reconhece este RDO, ignore este e-mail.
-      </p>
-    </div>
-  </div>
-</body>
-</html>`
+// ─── ITEM C — Modo 2: Assinatura in loco COM conta ───────────────────────────
+
+/** Aprovação in loco: o aprovador está fisicamente presente e assina no aparelho do encarregado */
+export async function assinarInLocoComConta(
+  rdoId: string,
+  assinaturaCliente: string,
+  aprovadorId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const usuario = await getUsuarioOuErro()
+
+    // Pode ser feito pelo encarregado/engenheiro/admin que está facilitando
+    if (isCliente(usuario.funcao)) throw new Error('Acesso negado')
+    await verificarOwnershipRdo(rdoId, usuario)
+
+    // Garante que o aprovadorId é de um aprovador atribuído à obra
+    const [rdoRow] = await db
+      .select({ obraId: rdo.obraId })
+      .from(rdo).where(eq(rdo.id, rdoId)).limit(1)
+
+    if (!rdoRow) return { success: false, error: 'RDO não encontrado' }
+
+    const [atribuicao] = await db
+      .select({ id: obraResponsaveis.id })
+      .from(obraResponsaveis)
+      .where(and(
+        eq(obraResponsaveis.obraId, rdoRow.obraId),
+        eq(obraResponsaveis.usuarioId, aprovadorId),
+        eq(obraResponsaveis.papel, 'aprovador'),
+      ))
+      .limit(1)
+
+    if (!atribuicao) return { success: false, error: 'Aprovador não atribuído a esta obra' }
+
+    await db.update(rdo).set({
+      status: 'aprovado',
+      assinaturaCliente,
+      aprovadoPorId: aprovadorId,
+      aprovadoEm: new Date(),
+      linkToken: null,
+      tokenExpiresAt: null,
+      atualizadoEm: new Date(),
+    }).where(eq(rdo.id, rdoId))
+
+    const [rdoAtual] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, rdoId)).limit(1)
+    if (rdoAtual) {
+      await db.insert(notificacoes).values({
+        usuarioId: rdoAtual.criadoPorId,
+        titulo: 'RDO Aprovado (in loco)',
+        mensagem: `Seu RDO de ${rdoAtual.data} foi aprovado presencialmente.`,
+        tipo: 'rdo_aprovado',
+        referenciaId: rdoId,
+        tabelaReferencia: 'rdo',
+      })
+    }
+
+    revalidatePath('/rdo')
+    revalidatePath(`/rdo/${rdoId}`)
+    revalidatePath('/hh')
+    return { success: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro ao registrar assinatura in loco'
+    return { success: false, error: msg }
+  }
 }
+
+// ─── ITEM C — Modo 3: Assinatura in loco SEM conta ───────────────────────────
+
+export async function assinarInLocoSemConta(
+  rdoId: string,
+  dados: {
+    nomeAssinante: string
+    cargoAssinante: string
+    assinaturaCliente: string
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const usuario = await getUsuarioOuErro()
+    if (isCliente(usuario.funcao)) throw new Error('Acesso negado')
+    await verificarOwnershipRdo(rdoId, usuario)
+
+    if (!dados.nomeAssinante.trim()) return { success: false, error: 'Nome do assinante é obrigatório' }
+    if (!dados.assinaturaCliente) return { success: false, error: 'Assinatura é obrigatória' }
+
+    await db.update(rdo).set({
+      status: 'aprovado',
+      assinaturaCliente: dados.assinaturaCliente,
+      nomeAssinanteExterno: dados.nomeAssinante.trim(),
+      cargoAssinanteExterno: dados.cargoAssinante.trim() || null,
+      aprovadoEm: new Date(),
+      aprovadoPorId: null,
+      linkToken: null,
+      tokenExpiresAt: null,
+      atualizadoEm: new Date(),
+    }).where(eq(rdo.id, rdoId))
+
+    const [rdoAtual] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, rdoId)).limit(1)
+    if (rdoAtual) {
+      await db.insert(notificacoes).values({
+        usuarioId: rdoAtual.criadoPorId,
+        titulo: 'RDO Aprovado (in loco sem conta)',
+        mensagem: `Seu RDO de ${rdoAtual.data} foi assinado presencialmente por ${dados.nomeAssinante}.`,
+        tipo: 'rdo_aprovado',
+        referenciaId: rdoId,
+        tabelaReferencia: 'rdo',
+      })
+    }
+
+    revalidatePath('/rdo')
+    revalidatePath(`/rdo/${rdoId}`)
+    revalidatePath('/hh')
+    return { success: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro ao registrar assinatura'
+    return { success: false, error: msg }
+  }
+}
+
+// ─── Aprovação via conta do cliente (legado) ─────────────────────────────────
 
 export async function aprovarRdo(id: string, assinaturaCliente: string) {
   const usuario = await getUsuarioOuErro()
@@ -369,7 +539,7 @@ export async function rejeitarRdo(id: string, motivoRejeicao: string) {
   revalidatePath('/hh')
 }
 
-// ─── Aprovação remota por token (Modo B — sem login) ────────────────────────
+// ─── Aprovação remota por token (Modo 1 — sem login) ────────────────────────
 
 export async function carregarRdoPorToken(token: string) {
   const [rdoRow] = await db
@@ -476,4 +646,40 @@ export async function rejeitarRdoPorToken(token: string, motivoRejeicao: string)
   revalidatePath('/rdo')
   revalidatePath(`/rdo/${rdoRow.id}`)
   revalidatePath('/hh')
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function emailAprovacaoHtml({ clienteNome, obraNome, data, link }: {
+  clienteNome: string; obraNome: string; data: string; link: string
+}) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:Arial,sans-serif;background:#f8fafc;margin:0;padding:32px">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <div style="background:#1e40af;padding:24px 32px">
+      <h1 style="color:#fff;margin:0;font-size:20px">CMI Gestão de Obras</h1>
+    </div>
+    <div style="padding:32px">
+      <p style="color:#334155;margin:0 0 16px">Olá, <strong>${clienteNome}</strong>!</p>
+      <p style="color:#334155;margin:0 0 24px">
+        Um Relatório Diário de Obra está aguardando sua aprovação:
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+        <tr><td style="padding:8px 12px;background:#f1f5f9;color:#64748b;font-size:13px;border-radius:4px 0 0 4px">Obra</td>
+            <td style="padding:8px 12px;font-weight:bold;color:#1e293b;font-size:13px">${obraNome}</td></tr>
+        <tr><td style="padding:8px 12px;background:#f1f5f9;color:#64748b;font-size:13px">Data</td>
+            <td style="padding:8px 12px;font-weight:bold;color:#1e293b;font-size:13px">${data}</td></tr>
+      </table>
+      <a href="${link}" style="display:inline-block;background:#1e40af;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
+        Ver RDO e Aprovar →
+      </a>
+      <p style="color:#94a3b8;font-size:12px;margin:24px 0 0">
+        Este link expira em 7 dias. Se não reconhece este RDO, ignore este e-mail.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`
 }
