@@ -15,7 +15,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   // Usa req.nextUrl (nativo do Next.js) para garantir que query params sejam lidos corretamente
   const tokenParam = req.nextUrl.searchParams.get('token')
-  console.log('[PDF] id=%s tokenParam=%s url=%s', id, tokenParam ? tokenParam.slice(0, 8) + '…' : 'null', req.nextUrl.pathname)
 
   let rdoRow: typeof rdo.$inferSelect | undefined
 
