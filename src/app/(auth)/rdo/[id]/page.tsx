@@ -39,7 +39,7 @@ async function carregarRdo(id: string, usuario: NonNullable<Awaited<ReturnType<t
         .limit(1)
       if (row) return row.rdo
     }
-    // Aprovador via obraResponsaveis
+    // Aprovador via obraResponsaveis (sistema novo)
     const atribuicoes = await db
       .select({ obraId: obraResponsaveis.obraId })
       .from(obraResponsaveis)
@@ -49,10 +49,18 @@ async function carregarRdo(id: string, usuario: NonNullable<Awaited<ReturnType<t
       const [row] = await db
         .select()
         .from(rdo)
-        .where(and(eq(rdo.id, id)))
+        .where(eq(rdo.id, id))
         .limit(1)
       if (row) return row
     }
+    // Aprovador via obras.aprovadorClienteId (sistema legado)
+    const [rowLegado] = await db
+      .select()
+      .from(rdo)
+      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.aprovadorClienteId, usuario.id)))
+      .where(eq(rdo.id, id))
+      .limit(1)
+    if (rowLegado) return rowLegado.rdo
     return null
   }
 

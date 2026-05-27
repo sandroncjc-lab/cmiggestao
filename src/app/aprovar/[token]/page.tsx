@@ -12,33 +12,36 @@ const climaLabel: Record<string, string> = {
   tempestade: '⛈️ Tempestade',
 }
 
+const statusLabel: Record<string, { emoji: string; texto: string; cor: string }> = {
+  aprovado:  { emoji: '✅', texto: 'RDO Aprovado',  cor: 'bg-green-50 border-green-200 text-green-800' },
+  rejeitado: { emoji: '❌', texto: 'RDO Rejeitado', cor: 'bg-red-50 border-red-200 text-red-800' },
+}
+
 export default async function AprovarRdoPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const dados = await carregarRdoPorToken(token)
 
   if (!dados) notFound()
 
-  // Token expirado ou RDO já processado
-  if (dados.erro) {
+  // Link expirado — sem dados para mostrar
+  if (dados.erro === 'EXPIRADO') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center space-y-4">
-          <div className="text-5xl">{dados.erro === 'EXPIRADO' ? '⏱️' : '✅'}</div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            {dados.erro === 'EXPIRADO' ? 'Link Expirado' : 'RDO já processado'}
-          </h1>
+          <div className="text-5xl">⏱️</div>
+          <h1 className="text-2xl font-bold text-slate-800">Link Expirado</h1>
           <p className="text-slate-500">
-            {dados.erro === 'EXPIRADO'
-              ? 'Este link de aprovação expirou (validade de 7 dias). Solicite um novo envio ao responsável da obra.'
-              : 'Este RDO já foi aprovado ou rejeitado anteriormente.'}
+            Este link de aprovação expirou (validade de 7 dias). Solicite um novo envio ao responsável da obra.
           </p>
         </div>
       </div>
     )
   }
 
-  const { rdoRow, obraNome, clienteNome, atividades, funcionarios } = dados
+  const { rdoRow, obraNome, clienteNome, atividades, funcionarios, fotos } = dados
   const totalHoras = funcionarios.reduce((s, f) => s + Number(f.horasTrabalhadas), 0)
+  const jaProcessado = dados.erro === 'JA_PROCESSADO'
+  const statusInfo = statusLabel[rdoRow.status]
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -46,19 +49,37 @@ export default async function AprovarRdoPage({ params }: { params: Promise<{ tok
       <div className="bg-blue-800 text-white px-4 py-5">
         <div className="max-w-2xl mx-auto">
           <p className="text-blue-200 text-sm font-medium uppercase tracking-wide">CMI Gestão de Obras</p>
-          <h1 className="text-2xl font-bold mt-1">Aprovação de RDO</h1>
+          <h1 className="text-2xl font-bold mt-1">
+            {jaProcessado ? 'Relatório Diário de Obras' : 'Aprovação de RDO'}
+          </h1>
           <p className="text-blue-200 text-sm mt-1">{obraNome} — {rdoRow.data}</p>
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+
+        {/* Banner de status (somente quando já processado) */}
+        {jaProcessado && statusInfo && (
+          <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${statusInfo.cor}`}>
+            <span className="text-2xl">{statusInfo.emoji}</span>
+            <div>
+              <p className="font-semibold">{statusInfo.texto}</p>
+              <p className="text-sm opacity-80">
+                {rdoRow.status === 'aprovado'
+                  ? 'Sua aprovação foi registrada. Você pode continuar visualizando o RDO e baixar o PDF abaixo.'
+                  : 'Este RDO foi rejeitado. Você pode visualizar o conteúdo e baixar o PDF abaixo.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Resumo */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Data', value: rdoRow.data },
-            { label: 'Obra', value: obraNome },
+            { label: 'Data',    value: rdoRow.data },
+            { label: 'Obra',    value: obraNome },
             { label: 'Cliente', value: clienteNome ?? '—' },
-            { label: 'Clima', value: climaLabel[rdoRow.clima] ?? rdoRow.clima },
+            { label: 'Clima',   value: climaLabel[rdoRow.clima] ?? rdoRow.clima },
           ].map((c) => (
             <div key={c.label} className="bg-white rounded-lg border border-slate-200 p-3">
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">{c.label}</p>
@@ -113,7 +134,34 @@ export default async function AprovarRdoPage({ params }: { params: Promise<{ tok
           </Card>
         )}
 
-        {/* Download PDF */}
+        {/* Fotos */}
+        {fotos.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Fotos ({fotos.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {fotos.map((f, i) => (
+                  <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="group block">
+                    <div className="aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                      <img
+                        src={f.url}
+                        alt={f.legenda ?? `Foto ${i + 1}`}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      />
+                    </div>
+                    {f.legenda && (
+                      <p className="mt-1 text-xs text-slate-500 truncate">{f.legenda}</p>
+                    )}
+                  </a>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Download PDF — sempre visível */}
         <a
           href={`/api/rdo/${rdoRow.id}/pdf`}
           download
@@ -123,8 +171,8 @@ export default async function AprovarRdoPage({ params }: { params: Promise<{ tok
           Baixar RDO em PDF
         </a>
 
-        {/* Formulário de aprovação/rejeição */}
-        <AprovarForm token={token} />
+        {/* Formulário de aprovação — somente quando ainda pendente */}
+        {!jaProcessado && <AprovarForm token={token} />}
       </div>
     </div>
   )
