@@ -564,8 +564,12 @@ export async function carregarRdoPorToken(token: string) {
     .limit(1)
 
   if (!rdoRow) return null
-  if (rdoRow.status !== 'pendente_aprovacao') return { erro: 'JA_PROCESSADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [], fotos: [] }
-  if (rdoRow.tokenExpiresAt && rdoRow.tokenExpiresAt < new Date()) return { erro: 'EXPIRADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [], fotos: [] }
+
+  // Sempre carrega os dados completos (aprovado, rejeitado ou pendente)
+  // para que o cliente possa continuar visualizando e baixando o PDF.
+  if (rdoRow.tokenExpiresAt && rdoRow.tokenExpiresAt < new Date() && rdoRow.status === 'pendente_aprovacao') {
+    return { erro: 'EXPIRADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [], fotos: [] }
+  }
 
   const [obraData] = await db
     .select({ nome: obras.nome, clienteNome: clientes.nome })
@@ -580,11 +584,19 @@ export async function carregarRdoPorToken(token: string) {
     db.select({ url: rdoFotos.url, legenda: rdoFotos.legenda }).from(rdoFotos).where(eq(rdoFotos.rdoId, rdoRow.id)),
   ])
 
+  const obraNome = obraData?.nome ?? '—'
+  const clienteNome = obraData?.clienteNome ?? null
+
+  // Se já foi processado, retorna com os dados mas sinaliza o erro
+  if (rdoRow.status !== 'pendente_aprovacao') {
+    return { erro: 'JA_PROCESSADO' as const, rdoRow, obraNome, clienteNome, atividades, funcionarios, fotos }
+  }
+
   return {
     erro: null,
     rdoRow,
-    obraNome: obraData?.nome ?? '—',
-    clienteNome: obraData?.clienteNome ?? null,
+    obraNome,
+    clienteNome,
     atividades,
     funcionarios,
     fotos,
