@@ -37,7 +37,7 @@ export default async function AprovarRdoPage({ params }: { params: Promise<{ tok
     )
   }
 
-  const { rdoRow, obraNome, clienteNome, atividades, funcionarios } = dados
+  const { rdoRow, obraNome, clienteNome, atividades, funcionarios, fotos } = dados
   const totalHoras = funcionarios.reduce((s, f) => s + Number(f.horasTrabalhadas), 0)
 
   return (
@@ -109,6 +109,33 @@ export default async function AprovarRdoPage({ params }: { params: Promise<{ tok
                   </li>
                 ))}
               </ul>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Fotos */}
+        {fotos.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Fotos ({fotos.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {fotos.map((f, i) => (
+                  <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="group block">
+                    <div className="aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                      <img
+                        src={f.url}
+                        alt={f.legenda ?? `Foto ${i + 1}`}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      />
+                    </div>
+                    {f.legenda && (
+                      <p className="mt-1 text-xs text-slate-500 truncate">{f.legenda}</p>
+                    )}
+                  </a>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

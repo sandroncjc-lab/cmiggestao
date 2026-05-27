@@ -564,8 +564,8 @@ export async function carregarRdoPorToken(token: string) {
     .limit(1)
 
   if (!rdoRow) return null
-  if (rdoRow.status !== 'pendente_aprovacao') return { erro: 'JA_PROCESSADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [] }
-  if (rdoRow.tokenExpiresAt && rdoRow.tokenExpiresAt < new Date()) return { erro: 'EXPIRADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [] }
+  if (rdoRow.status !== 'pendente_aprovacao') return { erro: 'JA_PROCESSADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [], fotos: [] }
+  if (rdoRow.tokenExpiresAt && rdoRow.tokenExpiresAt < new Date()) return { erro: 'EXPIRADO' as const, rdoRow, obraNome: '', clienteNome: null, atividades: [], funcionarios: [], fotos: [] }
 
   const [obraData] = await db
     .select({ nome: obras.nome, clienteNome: clientes.nome })
@@ -574,9 +574,10 @@ export async function carregarRdoPorToken(token: string) {
     .where(eq(obras.id, rdoRow.obraId))
     .limit(1)
 
-  const [atividades, funcionarios] = await Promise.all([
+  const [atividades, funcionarios, fotos] = await Promise.all([
     db.select().from(rdoAtividades).where(eq(rdoAtividades.rdoId, rdoRow.id)),
     db.select().from(rdoFuncionarios).where(eq(rdoFuncionarios.rdoId, rdoRow.id)),
+    db.select({ url: rdoFotos.url, legenda: rdoFotos.legenda }).from(rdoFotos).where(eq(rdoFotos.rdoId, rdoRow.id)),
   ])
 
   return {
@@ -586,6 +587,7 @@ export async function carregarRdoPorToken(token: string) {
     clienteNome: obraData?.clienteNome ?? null,
     atividades,
     funcionarios,
+    fotos,
   }
 }
 
@@ -604,8 +606,8 @@ export async function aprovarRdoPorToken(token: string, assinaturaCliente: strin
     status: 'aprovado',
     assinaturaCliente,
     aprovadoEm: new Date(),
-    linkToken: null,
-    tokenExpiresAt: null,
+    // Não limpamos linkToken aqui para evitar 404 no refresh automático do Next.js.
+    // O status 'aprovado' já impede qualquer re-aprovação; o token fica inerte.
     atualizadoEm: new Date(),
   }).where(eq(rdo.id, rdoRow.id))
 
@@ -637,8 +639,7 @@ export async function rejeitarRdoPorToken(token: string, motivoRejeicao: string)
   await db.update(rdo).set({
     status: 'rejeitado',
     motivoRejeicao,
-    linkToken: null,
-    tokenExpiresAt: null,
+    // Não limpamos linkToken — evita 404 no refresh automático do Next.js.
     atualizadoEm: new Date(),
   }).where(eq(rdo.id, rdoRow.id))
 
