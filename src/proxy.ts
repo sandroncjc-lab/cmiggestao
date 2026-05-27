@@ -6,7 +6,7 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up(.*)',
   '/api/webhooks/clerk',
   '/aprovar(.*)',        // aprovação remota de RDO — sem login necessário
-  '/api/rdo/(.*)/pdf',  // download de PDF RDO
+  '/api/rdo/:id/pdf',   // download de PDF RDO
   '/api/hh/pdf',       // download de PDF HH
   '/aguardando',        // página amigável para usuários pendentes de atribuição
 ])

@@ -409,7 +409,7 @@ export async function assinarInLocoComConta(
       assinaturaCliente,
       aprovadoPorId: aprovadorId,
       aprovadoEm: new Date(),
-      linkToken: null,
+      // Não limpamos linkToken — cliente externo pode precisar baixar o PDF depois.
       tokenExpiresAt: null,
       atualizadoEm: new Date(),
     }).where(eq(rdo.id, rdoId))
@@ -461,7 +461,7 @@ export async function assinarInLocoSemConta(
       cargoAssinanteExterno: dados.cargoAssinante.trim() || null,
       aprovadoEm: new Date(),
       aprovadoPorId: null,
-      linkToken: null,
+      // Não limpamos linkToken — cliente externo pode precisar baixar o PDF depois.
       tokenExpiresAt: null,
       atualizadoEm: new Date(),
     }).where(eq(rdo.id, rdoId))

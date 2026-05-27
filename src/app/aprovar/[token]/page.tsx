@@ -161,9 +161,9 @@ export default async function AprovarRdoPage({ params }: { params: Promise<{ tok
           </Card>
         )}
 
-        {/* Download PDF — sempre visível */}
+        {/* Download PDF — sempre visível; token autentica o cliente externo */}
         <a
-          href={`/api/rdo/${rdoRow.id}/pdf`}
+          href={`/api/rdo/${rdoRow.id}/pdf?token=${token}`}
           download
           className="flex items-center justify-center gap-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
         >
