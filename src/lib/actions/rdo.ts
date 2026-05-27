@@ -45,7 +45,7 @@ async function verificarOwnershipRdo(
         .limit(1)
       if (row) return row
     }
-    // Verifica via obraResponsaveis
+    // Verifica via obraResponsaveis (sistema novo)
     const obraIds = await getObrasAtribuidasIds(usuario.id)
     if (obraIds.length > 0) {
       const [row] = await db
@@ -55,6 +55,14 @@ async function verificarOwnershipRdo(
         .limit(1)
       if (row) return row
     }
+    // Verifica via obras.aprovadorClienteId (sistema legado)
+    const [rowLegado] = await db
+      .select({ id: rdo.id })
+      .from(rdo)
+      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.aprovadorClienteId, usuario.id)))
+      .where(eq(rdo.id, rdoId))
+      .limit(1)
+    if (rowLegado) return rowLegado
     throw new Error('Acesso negado: RDO não pertence ao seu cliente/atribuição')
   }
 
