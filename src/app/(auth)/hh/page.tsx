@@ -51,8 +51,7 @@ export default async function HhPage() {
                     {pct >= 80 && <AlertTriangle className="h-4 w-4 text-yellow-500" />}
                     <a
                       href={`/api/hh/pdf?obraId=${o.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      download
                       title="Baixar relatório PDF de HH"
                       className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-muted transition-colors"
                     >
