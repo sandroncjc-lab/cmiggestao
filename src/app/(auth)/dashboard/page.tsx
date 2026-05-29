@@ -193,6 +193,7 @@ export default async function DashboardPage() {
         <div className="space-y-4">
           <h2 className="text-2xl font-bold">Dashboard</h2>
           <p className="text-muted-foreground">Sua conta não está vinculada a nenhum cliente. Contate o administrador.</p>
+          <p className="text-sm text-muted-foreground">Se precisar sair, use o menu de usuário no canto superior direito.</p>
         </div>
       )
     }

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckCircle, XCircle } from 'lucide-react'
 import { aprovarRdo, rejeitarRdo } from '@/lib/actions/rdo'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
   const router = useRouter()
@@ -14,7 +15,7 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
   const [drawing, setDrawing] = useState(false)
   const [motivoRejeicao, setMotivoRejeicao] = useState('')
   const [showRejeitar, setShowRejeitar] = useState(false)
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
 
   function getPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
@@ -69,11 +70,15 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
   }
 
   function handleAprovar() {
-    const canvas = canvasRef.current
-    const assinatura = canvas ? canvas.toDataURL('image/png') : ''
     startTransition(async () => {
-      await aprovarRdo(rdoId, assinatura)
-      router.push('/rdo')
+      try {
+        const canvas = canvasRef.current
+        const assinatura = canvas ? canvas.toDataURL('image/png') : ''
+        await aprovarRdo(rdoId, assinatura)
+        router.push('/rdo')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erro ao aprovar RDO')
+      }
     })
   }
 
@@ -83,8 +88,12 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
       return
     }
     startTransition(async () => {
-      await rejeitarRdo(rdoId, motivoRejeicao)
-      router.push('/rdo')
+      try {
+        await rejeitarRdo(rdoId, motivoRejeicao)
+        router.push('/rdo')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erro ao rejeitar RDO')
+      }
     })
   }
 
@@ -115,10 +124,10 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={handleAprovar} className="bg-green-600 hover:bg-green-700">
-            <CheckCircle className="h-4 w-4 mr-2" />Aprovar RDO
+          <Button onClick={handleAprovar} disabled={isPending} className="bg-green-600 hover:bg-green-700">
+            <CheckCircle className="h-4 w-4 mr-2" />{isPending ? 'Aprovando...' : 'Aprovar RDO'}
           </Button>
-          <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setShowRejeitar(!showRejeitar)}>
+          <Button variant="outline" disabled={isPending} className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setShowRejeitar(!showRejeitar)}>
             <XCircle className="h-4 w-4 mr-2" />Rejeitar
           </Button>
         </div>

@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Plus, AlertTriangle } from 'lucide-react'
-import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
+import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
+import { redirect } from 'next/navigation'
 
 function getEpiVariant(validade: string | null, status: string): { label: string; variant: string } {
   if (status === 'vencido') return { label: 'Vencido', variant: 'destructive' }
@@ -18,7 +19,9 @@ function getEpiVariant(validade: string | null, status: string): { label: string
 }
 
 export default async function EpisPage() {
-  const empresaId = await getEmpresaIdOuErro()
+  const usuario = await getUsuarioAtual()
+  if (!usuario || isCliente(usuario.funcao)) redirect('/dashboard')
+  const empresaId = usuario.empresaId
 
   const rows = await db
     .select({

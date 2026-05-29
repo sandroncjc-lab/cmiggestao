@@ -1,7 +1,8 @@
 import { db } from '@/app/db'
 import { clientes, obras, contratos, documentos, usuarios } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
-import { notFound } from 'next/navigation'
+import { and, eq } from 'drizzle-orm'
+import { notFound, redirect } from 'next/navigation'
+import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +20,9 @@ const statusObraLabel: Record<string, { label: string; variant: 'default' | 'suc
 
 export default async function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [cliente] = await db.select().from(clientes).where(eq(clientes.id, id)).limit(1)
+  const empresaId = await getEmpresaIdOuErro()
+
+  const [cliente] = await db.select().from(clientes).where(and(eq(clientes.id, id), eq(clientes.empresaId, empresaId))).limit(1)
   if (!cliente) notFound()
 
   const [obrasDoCliente, contratosDoCliente, documentosDoCliente, aprovadoresDoCliente] = await Promise.all([
@@ -130,7 +133,7 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
                   {contratosDoCliente.map((c) => (
                     <li key={c.id} className="flex items-center justify-between p-4">
                       <div>
-                        <Link href={`/contratos/${c.id}`} className="font-medium hover:underline">{c.numero}</Link>
+                        <Link href={`/contratos/${c.id}/editar`} className="font-medium hover:underline">{c.numero}</Link>
                         <p className="text-sm text-muted-foreground">R$ {Number(c.valorTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                       </div>
                       <Badge>{c.status}</Badge>
