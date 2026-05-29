@@ -10,7 +10,7 @@ import { verificarOwnershipObra, verificarOwnershipHHRegistro } from '@/lib/auth
 
 export async function listarHHDados() {
   const usuario = await getUsuarioAtual()
-  if (!usuario) return { obrasList: [], registros: [], consumoMap: {} as Record<string, number> }
+  if (!usuario) return { obrasList: [], consumoMap: {} as Record<string, number>, rdosPorObra: {} as Record<string, never[]>, registrosPorObra: {} as Record<string, never[]> }
 
   // INNER JOIN com hhContratos: só aparecem obras que já têm HH contratado definido
   let obrasQuery
@@ -33,11 +33,11 @@ export async function listarHHDados() {
   const obrasList = await obrasQuery
   const obraIds = obrasList.map((o) => o.id)
 
-  if (obraIds.length === 0) return { obrasList, registros: [], consumoMap: {} }
+  if (obraIds.length === 0) return { obrasList, consumoMap: {} as Record<string, number>, rdosPorObra: {} as Record<string, never[]>, registrosPorObra: {} as Record<string, never[]> }
 
   // FONTE OFICIAL DE CONSUMO: rdoFuncionarios de RDOs não-rejeitados
   // Estorno automático: RDO rejeitado sai do filtro → horas devolvidas ao saldo
-  const [consumoPorObra, registros] = await Promise.all([
+  const [consumoPorObra, lancamentosRdo, registros] = await Promise.all([
     db
       .select({
         obraId: rdo.obraId,
@@ -50,12 +50,26 @@ export async function listarHHDados() {
         ne(rdo.status, 'rejeitado'),
       ))
       .groupBy(rdo.obraId),
-    // Registros manuais (anotações) — não afetam o saldo, apenas exibição
+    db
+      .select({
+        obraId: rdo.obraId,
+        rdoId: rdo.id,
+        rdoData: rdo.data,
+        nomeFuncionario: rdoFuncionarios.nomeFuncionario,
+        funcao: rdoFuncionarios.funcao,
+        horas: rdoFuncionarios.horasTrabalhadas,
+      })
+      .from(rdoFuncionarios)
+      .innerJoin(rdo, eq(rdo.id, rdoFuncionarios.rdoId))
+      .where(and(
+        inArray(rdo.obraId, obraIds),
+        ne(rdo.status, 'rejeitado'),
+      ))
+      .orderBy(rdo.data, rdoFuncionarios.nomeFuncionario),
     db
       .select({
         id: hhRegistros.id,
         obraId: hhRegistros.obraId,
-        obraNome: obras.nome,
         nomeFuncionario: hhRegistros.nomeFuncionario,
         funcao: hhRegistros.funcao,
         data: hhRegistros.data,
@@ -63,13 +77,25 @@ export async function listarHHDados() {
         horasExtras: hhRegistros.horasExtras,
       })
       .from(hhRegistros)
-      .leftJoin(obras, eq(hhRegistros.obraId, obras.id))
       .where(inArray(hhRegistros.obraId, obraIds))
       .orderBy(hhRegistros.data),
   ])
 
-  const consumoMap = Object.fromEntries(consumoPorObra.map((c) => [c.obraId, Number(c.total)]))
-  return { obrasList, registros, consumoMap }
+  const consumoMap: Record<string, number> = Object.fromEntries(consumoPorObra.map((c) => [c.obraId, Number(c.total)]))
+
+  const rdosPorObra: Record<string, typeof lancamentosRdo> = {}
+  for (const l of lancamentosRdo) {
+    if (!rdosPorObra[l.obraId]) rdosPorObra[l.obraId] = []
+    rdosPorObra[l.obraId].push(l)
+  }
+
+  const registrosPorObra: Record<string, typeof registros> = {}
+  for (const r of registros) {
+    if (!registrosPorObra[r.obraId]) registrosPorObra[r.obraId] = []
+    registrosPorObra[r.obraId].push(r)
+  }
+
+  return { obrasList, consumoMap, rdosPorObra, registrosPorObra }
 }
 
 export async function definirHHContratado(formData: FormData) {

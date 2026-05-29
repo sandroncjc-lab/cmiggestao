@@ -1,6 +1,6 @@
 import { db } from '@/app/db'
-import { obras, clientes, usuarios, servicos } from '@/app/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { obras, clientes, usuarios, servicos, contratos, obraResponsaveis } from '@/app/db/schema'
+import { eq, and, inArray } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
@@ -15,6 +15,16 @@ export default async function NovoRdoPage({
   const { obraId } = await searchParams
   const usuario = await getUsuarioAtual()
 
+  // Encarregado só vê obras que está atribuído via obraResponsaveis
+  let obrasIds: string[] | null = null
+  if (usuario?.funcao === 'encarregado') {
+    const atribuicoes = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(and(eq(obraResponsaveis.usuarioId, usuario.id), eq(obraResponsaveis.papel, 'encarregado')))
+    obrasIds = atribuicoes.map((a) => a.obraId)
+  }
+
   const obrasList = usuario
     ? await db
         .select({
@@ -27,27 +37,41 @@ export default async function NovoRdoPage({
         .from(obras)
         .leftJoin(usuarios, eq(obras.aprovadorClienteId, usuarios.id))
         .leftJoin(clientes, eq(obras.clienteId, clientes.id))
-        .where(eq(obras.empresaId, usuario.empresaId))
+        .where(
+          obrasIds !== null
+            ? and(eq(obras.empresaId, usuario.empresaId), obrasIds.length > 0 ? inArray(obras.id, obrasIds) : eq(obras.id, ''))
+            : eq(obras.empresaId, usuario.empresaId)
+        )
         .orderBy(obras.nome)
     : []
 
-  // Carrega serviços de todas as obras da empresa, agrupados por obraId
-  const servicosList = usuario
-    ? await db
-        .select({
-          id: servicos.id,
-          nome: servicos.nome,
-          unidade: servicos.unidade,
-          obraId: servicos.obraId,
-        })
-        .from(servicos)
-        .innerJoin(obras, and(eq(servicos.obraId, obras.id), eq(obras.empresaId, usuario.empresaId)))
-        .orderBy(servicos.nome)
-    : []
+  const obraIdsVisiveis = obrasList.map((o) => o.id)
+
+  const [servicosList, contratosList] = obraIdsVisiveis.length > 0 && usuario
+    ? await Promise.all([
+        db
+          .select({ id: servicos.id, nome: servicos.nome, unidade: servicos.unidade, obraId: servicos.obraId })
+          .from(servicos)
+          .where(inArray(servicos.obraId, obraIdsVisiveis))
+          .orderBy(servicos.nome),
+        db
+          .select({ id: contratos.id, numero: contratos.numero, tipo: contratos.tipo, obraId: contratos.obraId })
+          .from(contratos)
+          .where(inArray(contratos.obraId, obraIdsVisiveis))
+          .orderBy(contratos.numero),
+      ])
+    : [[], []]
 
   const servicosPorObra = servicosList.reduce<Record<string, typeof servicosList>>((acc, s) => {
     if (!acc[s.obraId]) acc[s.obraId] = []
     acc[s.obraId].push(s)
+    return acc
+  }, {})
+
+  const contratosPorObra = contratosList.reduce<Record<string, typeof contratosList>>((acc, c) => {
+    if (!c.obraId) return acc
+    if (!acc[c.obraId]) acc[c.obraId] = []
+    acc[c.obraId].push(c)
     return acc
   }, {})
 
@@ -62,7 +86,7 @@ export default async function NovoRdoPage({
           <p className="text-muted-foreground">Relatório Diário de Obras</p>
         </div>
       </div>
-      <RdoForm obras={obrasList} servicosPorObra={servicosPorObra} defaultObraId={obraId} />
+      <RdoForm obras={obrasList} servicosPorObra={servicosPorObra} contratosPorObra={contratosPorObra} defaultObraId={obraId} />
     </div>
   )
 }

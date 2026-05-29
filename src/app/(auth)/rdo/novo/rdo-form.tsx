@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, Camera, X, AlertTriangle, CheckCircle2, ClipboardCheck } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Plus, Trash2, Camera, X, AlertTriangle, CheckCircle2, ClipboardCheck, Clock } from 'lucide-react'
 import { criarRdoCompleto } from '@/lib/actions/rdo'
 
 interface Obra {
@@ -19,19 +20,55 @@ interface Obra {
   aprovadorNome: string | null
   clienteNome: string | null
 }
+interface Contrato { id: string; numero: string; tipo: 'homem_hora' | 'valor_fechado'; obraId: string | null }
 interface Servico { id: string; nome: string; unidade: string | null; obraId: string }
 interface Atividade { descricao: string; horaInicio: string; horaFim: string; observacoes: string }
-interface Funcionario { nome: string; funcao: string; horas: string }
+interface Funcionario { nome: string; funcao: string; horaInicio: string; horaFim: string }
 interface ServicoExec { servicoId: string; quantidade: string; observacoes: string }
 
+function calcHoras(inicio: string, fim: string): number {
+  if (!inicio || !fim) return 0
+  const [hi, mi] = inicio.split(':').map(Number)
+  const [hf, mf] = fim.split(':').map(Number)
+  const diff = (hf * 60 + mf) - (hi * 60 + mi)
+  return diff > 0 ? diff / 60 : 0
+}
+
+function formatTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`
+}
+
+function isValidTime(val: string): boolean {
+  if (!/^\d{2}:\d{2}$/.test(val)) return false
+  const [h, m] = val.split(':').map(Number)
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59
+}
+
+function TimeInput({ value, onChange, placeholder = '07:00' }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      value={value}
+      placeholder={placeholder}
+      maxLength={5}
+      className={value && !isValidTime(value) ? 'border-destructive focus-visible:ring-destructive' : ''}
+      onChange={(e) => onChange(formatTimeInput(e.target.value))}
+    />
+  )
+}
 
 export function RdoForm({
   obras,
   servicosPorObra,
+  contratosPorObra,
   defaultObraId,
 }: {
   obras: Obra[]
   servicosPorObra: Record<string, Servico[]>
+  contratosPorObra: Record<string, Contrato[]>
   defaultObraId?: string
 }) {
   const router = useRouter()
@@ -40,6 +77,7 @@ export function RdoForm({
 
   // Step 1 — Dados Gerais
   const [obraId, setObraId] = useState(defaultObraId ?? '')
+  const [contratoId, setContratoId] = useState('')
   const [data, setData] = useState(new Date().toISOString().split('T')[0])
   const [clima, setClima] = useState('ensolarado')
 
@@ -49,7 +87,7 @@ export function RdoForm({
   ])
 
   // Step 3 — Funcionários
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([{ nome: '', funcao: '', horas: '' }])
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([{ nome: '', funcao: '', horaInicio: '07:00', horaFim: '17:00' }])
 
   // Step 4 — Serviços Executados
   const [servicosExec, setServicosExec] = useState<ServicoExec[]>([])
@@ -60,6 +98,14 @@ export function RdoForm({
 
   const obraSelecionada = obras.find((o) => o.id === obraId)
   const servicosDaObra = obraId ? (servicosPorObra[obraId] ?? []) : []
+  const contratosDaObra = obraId ? (contratosPorObra[obraId] ?? []) : []
+  const contratoSelecionado = contratosDaObra.find((c) => c.id === contratoId)
+
+  // Reset contrato ao trocar obra
+  function handleObraChange(id: string) {
+    setObraId(id)
+    setContratoId('')
+  }
 
   // ── Atividades ──────────────────────────────────────────────────────────────
   function addAtividade() {
@@ -71,7 +117,7 @@ export function RdoForm({
   }
 
   // ── Funcionários ────────────────────────────────────────────────────────────
-  function addFuncionario() { setFuncionarios((p) => [...p, { nome: '', funcao: '', horas: '' }]) }
+  function addFuncionario() { setFuncionarios((p) => [...p, { nome: '', funcao: '', horaInicio: '07:00', horaFim: '17:00' }]) }
   function removeFuncionario(i: number) { setFuncionarios((p) => p.filter((_, idx) => idx !== i)) }
   function updateFuncionario(i: number, field: keyof Funcionario, value: string) {
     setFuncionarios((p) => p.map((f, idx) => (idx === i ? { ...f, [field]: value } : f)))
@@ -108,15 +154,18 @@ export function RdoForm({
     try {
       const result = await criarRdoCompleto({
         obraId,
+        contratoId: contratoId || undefined,
         data,
         clima: clima as 'ensolarado' | 'nublado' | 'chuvoso' | 'tempestade',
         atividades: atividades.filter((a) => a.descricao.trim()),
-        funcionarios: funcionarios.filter((f) => f.nome.trim()),
+        funcionarios: funcionarios
+          .filter((f) => f.nome.trim())
+          .map((f) => ({ nome: f.nome, funcao: f.funcao, horaInicio: f.horaInicio, horaFim: f.horaFim })),
         servicos: servicosExec
           .filter((s) => s.servicoId && Number(s.quantidade) > 0)
           .map((s) => ({ servicoId: s.servicoId, quantidade: Number(s.quantidade), observacoes: s.observacoes })),
         fotos: fotos.map((f) => f.url),
-        assinaturaInterna: null, // sempre rascunho; assinatura e validação ficam na página de detalhe
+        assinaturaInterna: null,
       })
 
       if (result.success) {
@@ -131,6 +180,9 @@ export function RdoForm({
   }
 
   const steps = ['Dados Gerais', 'Atividades', 'Funcionários', 'Serviços', 'Fotos', 'Confirmar']
+
+  const totalFuncionarios = funcionarios.filter((f) => f.nome.trim())
+  const totalHorasFuncionarios = totalFuncionarios.reduce((sum, f) => sum + calcHoras(f.horaInicio, f.horaFim), 0)
 
   return (
     <div className="space-y-6">
@@ -166,7 +218,7 @@ export function RdoForm({
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Obra *</Label>
-              <Select value={obraId} onChange={(e) => setObraId(e.target.value)} required>
+              <Select value={obraId} onChange={(e) => handleObraChange(e.target.value)} required>
                 <option value="">Selecione a obra</option>
                 {obras.map((o) => (
                   <option key={o.id} value={o.id}>{o.nome}</option>
@@ -193,6 +245,36 @@ export function RdoForm({
                 )
               )}
             </div>
+
+            {/* Contrato */}
+            {obraId && (
+              <div className="space-y-2">
+                <Label>Contrato</Label>
+                {contratosDaObra.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">Nenhum contrato cadastrado para esta obra.</p>
+                ) : (
+                  <Select value={contratoId} onChange={(e) => setContratoId(e.target.value)}>
+                    <option value="">Selecione o contrato (opcional)</option>
+                    {contratosDaObra.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.numero} — {c.tipo === 'homem_hora' ? 'Homem-Hora' : 'Valor Fechado'}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+                {contratoSelecionado && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant={contratoSelecionado.tipo === 'homem_hora' ? 'default' : 'secondary'}>
+                      {contratoSelecionado.tipo === 'homem_hora' ? 'Homem-Hora (HH)' : 'Valor Fechado'}
+                    </Badge>
+                    {contratoSelecionado.tipo === 'homem_hora' && (
+                      <span className="text-xs text-muted-foreground">As horas deste RDO serão contabilizadas no saldo de HH</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Data *</Label>
@@ -248,11 +330,11 @@ export function RdoForm({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Hora Início</Label>
-                    <Input type="time" value={a.horaInicio} onChange={(e) => updateAtividade(i, 'horaInicio', e.target.value)} />
+                    <TimeInput value={a.horaInicio} onChange={(v) => updateAtividade(i, 'horaInicio', v)} />
                   </div>
                   <div className="space-y-2">
                     <Label>Hora Fim</Label>
-                    <Input type="time" value={a.horaFim} onChange={(e) => updateAtividade(i, 'horaFim', e.target.value)} />
+                    <TimeInput value={a.horaFim} onChange={(v) => updateAtividade(i, 'horaFim', v)} placeholder="17:00" />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -279,52 +361,71 @@ export function RdoForm({
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Funcionários</CardTitle>
+              <div>
+                <CardTitle>Funcionários</CardTitle>
+                {totalFuncionarios.length > 0 && (
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {totalFuncionarios.length} funcionário(s) — total {totalHorasFuncionarios.toFixed(1)}h
+                  </p>
+                )}
+              </div>
               <Button size="sm" variant="outline" onClick={addFuncionario}>
                 <Plus className="h-4 w-4 mr-1" />Adicionar
               </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {funcionarios.map((f, i) => (
-              <div key={i} className="grid grid-cols-3 gap-3 items-end">
-                <div className="space-y-2">
-                  <Label>Nome</Label>
-                  <Input
-                    value={f.nome}
-                    onChange={(e) => updateFuncionario(i, 'nome', e.target.value)}
-                    placeholder="Nome do funcionário"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Função</Label>
-                  <Input
-                    value={f.funcao}
-                    onChange={(e) => updateFuncionario(i, 'funcao', e.target.value)}
-                    placeholder="Ex: Soldador"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <div className="space-y-2 flex-1">
-                    <Label>Horas</Label>
-                    <Input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      max="24"
-                      value={f.horas}
-                      onChange={(e) => updateFuncionario(i, 'horas', e.target.value)}
-                      placeholder="8"
-                    />
+            {funcionarios.map((f, i) => {
+              const horas = calcHoras(f.horaInicio, f.horaFim)
+              return (
+                <div key={i} className="rounded-md border border-border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">Funcionário {i + 1}</span>
+                    <div className="flex items-center gap-2">
+                      {f.horaInicio && f.horaFim && horas > 0 && (
+                        <Badge variant="secondary" className="gap-1">
+                          <Clock className="h-3 w-3" />
+                          {horas.toFixed(1)}h
+                        </Badge>
+                      )}
+                      {funcionarios.length > 1 && (
+                        <Button size="icon" variant="ghost" onClick={() => removeFuncionario(i)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  {funcionarios.length > 1 && (
-                    <Button size="icon" variant="ghost" className="mt-6" onClick={() => removeFuncionario(i)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Nome *</Label>
+                      <Input
+                        value={f.nome}
+                        onChange={(e) => updateFuncionario(i, 'nome', e.target.value)}
+                        placeholder="Nome do funcionário"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Função</Label>
+                      <Input
+                        value={f.funcao}
+                        onChange={(e) => updateFuncionario(i, 'funcao', e.target.value)}
+                        placeholder="Ex: Soldador"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Entrada</Label>
+                      <TimeInput value={f.horaInicio} onChange={(v) => updateFuncionario(i, 'horaInicio', v)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Saída</Label>
+                      <TimeInput value={f.horaFim} onChange={(v) => updateFuncionario(i, 'horaFim', v)} placeholder="17:00" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(2)}>Voltar</Button>
               <Button onClick={() => setStep(4)}>Próximo</Button>
@@ -487,12 +588,20 @@ export function RdoForm({
               Revise os dados abaixo e salve o RDO. Na próxima tela você assina e escolhe como o cliente irá validar.
             </p>
 
-            {/* Resumo */}
             <div className="rounded-lg border border-border divide-y divide-border text-sm">
               <div className="flex justify-between px-4 py-2.5">
                 <span className="text-muted-foreground">Obra</span>
                 <span className="font-medium">{obraSelecionada?.nome ?? '—'}</span>
               </div>
+              {contratoSelecionado && (
+                <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-muted-foreground">Contrato</span>
+                  <span className="font-medium">
+                    {contratoSelecionado.numero} —{' '}
+                    {contratoSelecionado.tipo === 'homem_hora' ? 'Homem-Hora' : 'Valor Fechado'}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between px-4 py-2.5">
                 <span className="text-muted-foreground">Data</span>
                 <span className="font-medium">{data}</span>
@@ -507,7 +616,9 @@ export function RdoForm({
               </div>
               <div className="flex justify-between px-4 py-2.5">
                 <span className="text-muted-foreground">Funcionários</span>
-                <span className="font-medium">{funcionarios.filter((f) => f.nome.trim()).length}</span>
+                <span className="font-medium">
+                  {totalFuncionarios.length} — {totalHorasFuncionarios.toFixed(1)}h total
+                </span>
               </div>
               <div className="flex justify-between px-4 py-2.5">
                 <span className="text-muted-foreground">Fotos</span>

@@ -143,19 +143,28 @@ export async function listarRdos() {
 
 // ─── mutations ───────────────────────────────────────────────────────────────
 
+function calcHorasTrabalhadas(inicio: string, fim: string): string {
+  if (!inicio || !fim) return '0'
+  const [hi, mi] = inicio.split(':').map(Number)
+  const [hf, mf] = fim.split(':').map(Number)
+  const diff = (hf * 60 + mf) - (hi * 60 + mi)
+  return diff > 0 ? (diff / 60).toFixed(2) : '0'
+}
+
 export async function criarRdoCompleto(dados: {
   obraId: string
+  contratoId?: string
   data: string
   clima: 'ensolarado' | 'nublado' | 'chuvoso' | 'tempestade'
   atividades: { descricao: string; horaInicio?: string; horaFim?: string; observacoes?: string }[]
-  funcionarios: { nome: string; funcao?: string; horas: string }[]
+  funcionarios: { nome: string; funcao?: string; horaInicio: string; horaFim: string }[]
   servicos: { servicoId: string; quantidade: number; observacoes?: string }[]
   fotos: string[]
   assinaturaInterna: string | null   // null = salvar como rascunho
 }): Promise<{ success: boolean; error?: string; rdoId?: string }> {
   try {
     const usuario = await getUsuarioOuErro()
-    const { obraId, data, clima, atividades, funcionarios, servicos, fotos, assinaturaInterna } = dados
+    const { obraId, contratoId, data, clima, atividades, funcionarios, servicos, fotos, assinaturaInterna } = dados
 
     if (!obraId) return { success: false, error: 'Campo Obra é obrigatório' }
     if (!data)   return { success: false, error: 'Campo Data é obrigatório' }
@@ -173,6 +182,7 @@ export async function criarRdoCompleto(dados: {
     await db.insert(rdo).values({
       id: rdoId,
       obraId,
+      contratoId: contratoId || null,
       data,
       criadoPorId: usuario.id,
       clima,
@@ -197,7 +207,9 @@ export async function criarRdoCompleto(dados: {
         rdoId,
         nomeFuncionario: f.nome.trim(),
         funcao: f.funcao?.trim() || null,
-        horasTrabalhadas: f.horas || '0',
+        horaInicio: f.horaInicio || null,
+        horaFim: f.horaFim || null,
+        horasTrabalhadas: calcHorasTrabalhadas(f.horaInicio, f.horaFim),
       })))
     }
 

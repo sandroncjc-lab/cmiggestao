@@ -1,5 +1,5 @@
 import { db } from '@/app/db'
-import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras, clientes, empresas, usuarios, obraResponsaveis } from '@/app/db/schema'
+import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras, clientes, empresas, usuarios, obraResponsaveis, contratos } from '@/app/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -103,6 +103,10 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
   const [obraData] = await db
     .select({ nome: obras.nome, clienteId: obras.clienteId, aprovadorClienteId: obras.aprovadorClienteId })
     .from(obras).where(eq(obras.id, rdoData.obraId)).limit(1)
+
+  const contratoRdo = rdoData.contratoId
+    ? await db.select({ numero: contratos.numero, tipo: contratos.tipo }).from(contratos).where(eq(contratos.id, rdoData.contratoId)).limit(1).then((r) => r[0] ?? null)
+    : null
 
   const [atividades, funcionarios, fotos, rdoServsList, obraComCliente, nomeEmpresa, aprovadoresObra, aprovadorInfo] = await Promise.all([
     db.select().from(rdoAtividades).where(eq(rdoAtividades.rdoId, id)),
@@ -209,7 +213,7 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">Data</p>
@@ -226,6 +230,19 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">Obra</p>
             <p className="font-medium">{obraData?.nome ?? '—'}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Contrato</p>
+            {contratoRdo ? (
+              <div>
+                <p className="font-medium">{contratoRdo.numero}</p>
+                <p className="text-xs text-muted-foreground">{contratoRdo.tipo === 'homem_hora' ? 'Homem-Hora' : 'Valor Fechado'}</p>
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">Não vinculado</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -259,6 +276,11 @@ export default async function RdoDetailPage({ params }: { params: Promise<{ id: 
                   <div>
                     <p className="font-medium">{f.nomeFuncionario}</p>
                     {f.funcao && <p className="text-sm text-muted-foreground">{f.funcao}</p>}
+                    {(f.horaInicio || f.horaFim) && (
+                      <p className="text-sm text-muted-foreground">
+                        {f.horaInicio ?? '—'} às {f.horaFim ?? '—'}
+                      </p>
+                    )}
                   </div>
                   <span className="text-sm font-medium">{Number(f.horasTrabalhadas)}h</span>
                 </li>

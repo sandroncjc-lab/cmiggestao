@@ -1,18 +1,20 @@
 import { carregarUsuarioParaEdicao } from '@/lib/actions/usuarios'
 import { listarClientesComObras, listarObrasDoUsuario } from '@/lib/actions/responsaveis'
 import { getUsuarioOuErro } from '@/lib/server/getUsuario'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { EditarUsuarioForm } from './form'
 import { AtribuirObrasForm } from './atribuir-obras-form'
 
 export default async function EditarUsuarioPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [dados, admin, clientesComObras, obrasAtuais] = await Promise.all([
+  const admin = await getUsuarioOuErro()
+  if (admin.funcao !== 'admin' && admin.funcao !== 'engenheiro') redirect('/usuarios')
+
+  const [dados, clientesComObras, obrasAtuais] = await Promise.all([
     carregarUsuarioParaEdicao(id).catch(() => null),
-    getUsuarioOuErro(),
     listarClientesComObras(),
-    listarObrasDoUsuario(id),
+    listarObrasDoUsuario(id).catch(() => []),
   ])
 
   if (!dados) notFound()

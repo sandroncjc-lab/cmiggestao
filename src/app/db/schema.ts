@@ -152,6 +152,7 @@ export const rdo = pgTable('rdo', {
   // Assinatura in loco sem conta (Item C — Modo 3)
   nomeAssinanteExterno: varchar('nome_assinante_externo', { length: 255 }),
   cargoAssinanteExterno: varchar('cargo_assinante_externo', { length: 100 }),
+  contratoId: uuid('contrato_id'),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
   atualizadoEm: timestamp('atualizado_em').defaultNow().notNull(),
 })
@@ -175,6 +176,8 @@ export const rdoFuncionarios = pgTable('rdo_funcionarios', {
     .references(() => rdo.id),
   nomeFuncionario: varchar('nome_funcionario', { length: 255 }).notNull(),
   funcao: varchar('funcao', { length: 100 }),
+  horaInicio: varchar('hora_inicio', { length: 5 }),
+  horaFim: varchar('hora_fim', { length: 5 }),
   horasTrabalhadas: numeric('horas_trabalhadas', { precision: 5, scale: 2 }).notNull(),
   criadoEm: timestamp('criado_em').defaultNow().notNull(),
 })

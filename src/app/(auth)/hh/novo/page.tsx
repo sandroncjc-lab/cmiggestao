@@ -1,7 +1,9 @@
 import { db } from '@/app/db'
-import { obras } from '@/app/db/schema'
+import { obras, contratos } from '@/app/db/schema'
 import { registrarHH } from '@/lib/actions/hh'
+import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { redirect } from 'next/navigation'
+import { and, eq } from 'drizzle-orm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,7 +13,15 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export default async function NovoHHPage() {
-  const obrasList = await db.select().from(obras).orderBy(obras.nome)
+  const usuario = await getUsuarioAtual()
+  if (!usuario || isCliente(usuario.funcao)) redirect('/hh')
+
+  const obrasList = await db
+    .selectDistinct({ id: obras.id, nome: obras.nome })
+    .from(obras)
+    .innerJoin(contratos, and(eq(contratos.obraId, obras.id), eq(contratos.tipo, 'homem_hora')))
+    .where(eq(obras.empresaId, usuario.empresaId))
+    .orderBy(obras.nome)
 
   async function action(formData: FormData) {
     'use server'
