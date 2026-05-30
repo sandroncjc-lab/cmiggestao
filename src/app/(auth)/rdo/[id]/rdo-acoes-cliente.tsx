@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState, useTransition, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +12,22 @@ import { toast } from 'sonner'
 export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
   const router = useRouter()
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const resize = () => {
+      const ratio = window.devicePixelRatio || 1
+      const w = canvas.offsetWidth
+      canvas.width = w * ratio
+      canvas.height = 120 * ratio
+      const ctx = canvas.getContext('2d')
+      if (ctx) { ctx.scale(ratio, ratio); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.lineCap = 'round' }
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
   const [drawing, setDrawing] = useState(false)
   const [motivoRejeicao, setMotivoRejeicao] = useState('')
   const [showRejeitar, setShowRejeitar] = useState(false)
@@ -120,9 +136,8 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
           <p className="text-sm font-medium mb-2">Assinatura</p>
           <canvas
             ref={canvasRef}
-            width={400}
-            height={120}
             className="w-full rounded-md border border-border bg-white cursor-crosshair touch-none"
+            style={{ height: 120 }}
             onMouseDown={startDraw}
             onMouseMove={draw}
             onMouseUp={stopDraw}

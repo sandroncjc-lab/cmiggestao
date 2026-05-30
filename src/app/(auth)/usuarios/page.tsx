@@ -80,7 +80,7 @@ export default async function UsuariosPage() {
                 Esses usuários se cadastraram mas ainda não têm empresa ou papel atribuídos.
               </p>
             </div>
-            <Table>
+            <div className="overflow-x-auto"><Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
@@ -107,7 +107,7 @@ export default async function UsuariosPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </Table></div>
           </CardContent>
         </Card>
       )}

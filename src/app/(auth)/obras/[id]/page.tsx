@@ -1,6 +1,6 @@
 import { db } from '@/app/db'
-import { obras, clientes, usuarios, servicos, rdo, obrasEnderecos, hhContratos, hhRegistros, obraResponsaveis } from '@/app/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { obras, clientes, usuarios, servicos, rdo, rdoFuncionarios, obrasEnderecos, hhContratos, obraResponsaveis } from '@/app/db/schema'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -77,7 +77,10 @@ export default async function ObraDetailPage({ params }: { params: Promise<{ id:
     db.select().from(rdo).where(eq(rdo.obraId, id)).orderBy(rdo.data),
     db.select().from(obrasEnderecos).where(eq(obrasEnderecos.obraId, id)).limit(1),
     db.select().from(hhContratos).where(eq(hhContratos.obraId, id)).limit(1),
-    db.select({ total: sql<number>`coalesce(sum(horas_normais + horas_extras), 0)` }).from(hhRegistros).where(eq(hhRegistros.obraId, id)),
+    db.select({ total: sql<number>`coalesce(sum(${rdoFuncionarios.horasTrabalhadas}), 0)` })
+      .from(rdoFuncionarios)
+      .innerJoin(rdo, eq(rdo.id, rdoFuncionarios.rdoId))
+      .where(and(eq(rdo.obraId, id), ne(rdo.status, 'rejeitado'))),
   ])
 
   // nomes dos responsáveis

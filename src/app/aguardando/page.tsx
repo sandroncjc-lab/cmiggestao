@@ -1,4 +1,4 @@
-import { UserButton } from '@clerk/nextjs'
+import { UserButton, SignOutButton } from '@clerk/nextjs'
 import { Clock } from 'lucide-react'
 
 export default function AguardandoPage() {
@@ -28,6 +28,12 @@ export default function AguardandoPage() {
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Se precisar de acesso urgente, entre em contato com o responsável pelo sistema.
           </div>
+
+          <SignOutButton>
+            <button className="text-sm text-slate-500 underline hover:text-slate-700">
+              Sair da conta
+            </button>
+          </SignOutButton>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState, useTransition, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Send, Copy, CheckCheck, Users, UserX, Link2 } from 'lucide-react'
@@ -44,6 +44,22 @@ function getPos(
 function SignatureCanvas({ canvasRef, label }: { canvasRef: React.RefObject<HTMLCanvasElement | null>; label: string }) {
   const [drawing, setDrawing] = useState(false)
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const resize = () => {
+      const ratio = window.devicePixelRatio || 1
+      const w = canvas.offsetWidth
+      canvas.width = w * ratio
+      canvas.height = 120 * ratio
+      const ctx = canvas.getContext('2d')
+      if (ctx) { ctx.scale(ratio, ratio); ctx.lineWidth = 2; ctx.lineCap = 'round' }
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [canvasRef])
+
   function startDraw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
     e.preventDefault()
     const canvas = canvasRef.current
@@ -79,8 +95,8 @@ function SignatureCanvas({ canvasRef, label }: { canvasRef: React.RefObject<HTML
       <p className="text-sm font-medium">{label}</p>
       <canvas
         ref={canvasRef}
-        width={400} height={120}
         className="w-full rounded-md border border-border bg-white cursor-crosshair touch-none"
+        style={{ height: 120 }}
         onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
         onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
       />
