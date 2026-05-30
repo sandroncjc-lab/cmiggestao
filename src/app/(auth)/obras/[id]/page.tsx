@@ -1,5 +1,5 @@
 import { db } from '@/app/db'
-import { obras, clientes, usuarios, servicos, rdo, obrasEnderecos, hhContratos, hhRegistros } from '@/app/db/schema'
+import { obras, clientes, usuarios, servicos, rdo, obrasEnderecos, hhContratos, hhRegistros, obraResponsaveis } from '@/app/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -36,6 +36,16 @@ export default async function ObraDetailPage({ params }: { params: Promise<{ id:
   const usuario = await getUsuarioAtual()
   if (!usuario) notFound()
   const clienteVendo = isCliente(usuario.funcao)
+
+  // Encarregado: verifica se está atribuído a esta obra
+  if (usuario.funcao === 'encarregado') {
+    const [atrib] = await db
+      .select({ id: obraResponsaveis.id })
+      .from(obraResponsaveis)
+      .where(and(eq(obraResponsaveis.usuarioId, usuario.id), eq(obraResponsaveis.obraId, id)))
+      .limit(1)
+    if (!atrib) notFound()
+  }
 
   // Filtro multi-tenant: cliente vê via clienteId, interno via empresaId
   const whereClause = clienteVendo && usuario.clienteId

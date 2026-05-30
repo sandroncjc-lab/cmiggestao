@@ -1,9 +1,9 @@
 import { db } from '@/app/db'
 import {
   obras, contratos, rdo, epis, equipamentos,
-  hhContratos, hhRegistros, servicos, clientes,
+  hhContratos, hhRegistros, rdoFuncionarios, servicos, clientes,
 } from '@/app/db/schema'
-import { eq, and, sql, inArray } from 'drizzle-orm'
+import { eq, and, sql, inArray, ne } from 'drizzle-orm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -113,12 +113,13 @@ async function getDashboardCliente(clienteId: string) {
       .where(inArray(hhContratos.obraId, obraIds)),
     db
       .select({
-        obraId: hhRegistros.obraId,
-        consumido: sql<number>`coalesce(sum(horas_normais + horas_extras), 0)`,
+        obraId: rdo.obraId,
+        consumido: sql<number>`coalesce(sum(${rdoFuncionarios.horasTrabalhadas}), 0)`,
       })
-      .from(hhRegistros)
-      .where(inArray(hhRegistros.obraId, obraIds))
-      .groupBy(hhRegistros.obraId),
+      .from(rdoFuncionarios)
+      .innerJoin(rdo, eq(rdo.id, rdoFuncionarios.rdoId))
+      .where(and(inArray(rdo.obraId, obraIds), ne(rdo.status, 'rejeitado')))
+      .groupBy(rdo.obraId),
     db
       .select({
         obraId: rdo.obraId,

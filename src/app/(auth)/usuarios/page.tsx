@@ -1,6 +1,6 @@
 import { db } from '@/app/db'
 import { usuarios, empresas } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, or, isNull } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,8 +30,7 @@ export default async function UsuariosPage() {
     redirect('/dashboard')
   }
 
-  // Busca TODOS os usuários — incluindo pendentes (sem empresa)
-  // LEFT JOIN para que usuários sem empresa apareçam com empresaNome = null
+  // Busca usuários da empresa + pendentes (sem empresa) que ainda precisam ser atribuídos
   const rows = await db
     .select({
       id: usuarios.id,
@@ -44,6 +43,7 @@ export default async function UsuariosPage() {
     })
     .from(usuarios)
     .leftJoin(empresas, eq(usuarios.empresaId, empresas.id))
+    .where(or(eq(usuarios.empresaId, usuarioLogado.empresaId), isNull(usuarios.empresaId)))
     .orderBy(usuarios.funcao, usuarios.nome)
 
   const pendentes = rows.filter((u) => u.funcao === 'pendente')

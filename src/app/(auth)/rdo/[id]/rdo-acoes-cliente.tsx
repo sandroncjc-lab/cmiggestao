@@ -69,15 +69,26 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
     ctx?.clearRect(0, 0, canvas.width, canvas.height)
   }
 
+  function isCanvasBlank(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return true
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) return false
+    return true
+  }
+
   function handleAprovar() {
+    const canvas = canvasRef.current
+    if (!canvas || isCanvasBlank(canvas)) {
+      setError('Assine o campo antes de aprovar.')
+      return
+    }
     startTransition(async () => {
-      try {
-        const canvas = canvasRef.current
-        const assinatura = canvas ? canvas.toDataURL('image/png') : ''
-        await aprovarRdo(rdoId, assinatura)
+      const result = await aprovarRdo(rdoId, canvas.toDataURL('image/png'))
+      if (result.success) {
         router.push('/rdo')
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Erro ao aprovar RDO')
+      } else {
+        toast.error(result.error ?? 'Erro ao aprovar RDO')
       }
     })
   }
@@ -88,11 +99,11 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
       return
     }
     startTransition(async () => {
-      try {
-        await rejeitarRdo(rdoId, motivoRejeicao)
+      const result = await rejeitarRdo(rdoId, motivoRejeicao)
+      if (result.success) {
         router.push('/rdo')
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Erro ao rejeitar RDO')
+      } else {
+        toast.error(result.error ?? 'Erro ao rejeitar RDO')
       }
     })
   }
@@ -121,6 +132,7 @@ export function RdoAcoesCliente({ rdoId }: { rdoId: string }) {
             onTouchEnd={stopDraw}
           />
           <Button variant="ghost" size="sm" className="mt-1" onClick={clearCanvas}>Limpar</Button>
+          {error && <p className="text-sm text-destructive mt-1">{error}</p>}
         </div>
 
         <div className="flex gap-2 flex-wrap">

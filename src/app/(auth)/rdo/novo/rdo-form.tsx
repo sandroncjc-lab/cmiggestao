@@ -388,6 +388,9 @@ export function RdoForm({
                           {horas.toFixed(1)}h
                         </Badge>
                       )}
+                      {f.horaInicio && f.horaFim && horas === 0 && (
+                        <Badge variant="destructive" className="text-xs">Saída ≤ Entrada</Badge>
+                      )}
                       {funcionarios.length > 1 && (
                         <Button size="icon" variant="ghost" onClick={() => removeFuncionario(i)}>
                           <Trash2 className="h-4 w-4 text-destructive" />

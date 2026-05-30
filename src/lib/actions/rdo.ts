@@ -502,61 +502,71 @@ export async function assinarInLocoSemConta(
 
 // ─── Aprovação via conta do cliente (legado) ─────────────────────────────────
 
-export async function aprovarRdo(id: string, assinaturaCliente: string) {
-  const usuario = await getUsuarioOuErro()
-  if (!isCliente(usuario.funcao)) throw new Error('Acesso negado: somente o aprovador do cliente pode aprovar')
-  await verificarOwnershipRdo(id, usuario)
+export async function aprovarRdo(id: string, assinaturaCliente: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const usuario = await getUsuarioOuErro()
+    if (!isCliente(usuario.funcao)) throw new Error('Acesso negado: somente o aprovador do cliente pode aprovar')
+    await verificarOwnershipRdo(id, usuario)
 
-  await db.update(rdo).set({
-    status: 'aprovado',
-    assinaturaCliente,
-    aprovadoPorId: usuario.id,
-    aprovadoEm: new Date(),
-    atualizadoEm: new Date(),
-  }).where(eq(rdo.id, id))
+    await db.update(rdo).set({
+      status: 'aprovado',
+      assinaturaCliente,
+      aprovadoPorId: usuario.id,
+      aprovadoEm: new Date(),
+      atualizadoEm: new Date(),
+    }).where(eq(rdo.id, id))
 
-  const [rdoRow] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
-  if (rdoRow) {
-    await db.insert(notificacoes).values({
-      usuarioId: rdoRow.criadoPorId,
-      titulo: 'RDO Aprovado',
-      mensagem: `Seu RDO de ${rdoRow.data} foi aprovado.`,
-      tipo: 'rdo_aprovado',
-      referenciaId: id,
-      tabelaReferencia: 'rdo',
-    })
+    const [rdoRow] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
+    if (rdoRow) {
+      await db.insert(notificacoes).values({
+        usuarioId: rdoRow.criadoPorId,
+        titulo: 'RDO Aprovado',
+        mensagem: `Seu RDO de ${rdoRow.data} foi aprovado.`,
+        tipo: 'rdo_aprovado',
+        referenciaId: id,
+        tabelaReferencia: 'rdo',
+      })
+    }
+    revalidatePath('/rdo')
+    revalidatePath(`/rdo/${id}`)
+    revalidatePath('/hh')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao aprovar RDO' }
   }
-  revalidatePath('/rdo')
-  revalidatePath(`/rdo/${id}`)
-  revalidatePath('/hh')
 }
 
-export async function rejeitarRdo(id: string, motivoRejeicao: string) {
-  const usuario = await getUsuarioOuErro()
-  if (!isCliente(usuario.funcao)) throw new Error('Acesso negado: somente o aprovador do cliente pode rejeitar')
-  await verificarOwnershipRdo(id, usuario)
+export async function rejeitarRdo(id: string, motivoRejeicao: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const usuario = await getUsuarioOuErro()
+    if (!isCliente(usuario.funcao)) throw new Error('Acesso negado: somente o aprovador do cliente pode rejeitar')
+    await verificarOwnershipRdo(id, usuario)
 
-  const [rdoRow] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
+    const [rdoRow] = await db.select({ criadoPorId: rdo.criadoPorId, data: rdo.data }).from(rdo).where(eq(rdo.id, id)).limit(1)
 
-  await db.update(rdo).set({
-    status: 'rejeitado',
-    motivoRejeicao,
-    atualizadoEm: new Date(),
-  }).where(eq(rdo.id, id))
+    await db.update(rdo).set({
+      status: 'rejeitado',
+      motivoRejeicao,
+      atualizadoEm: new Date(),
+    }).where(eq(rdo.id, id))
 
-  if (rdoRow) {
-    await db.insert(notificacoes).values({
-      usuarioId: rdoRow.criadoPorId,
-      titulo: 'RDO Rejeitado',
-      mensagem: `Seu RDO de ${rdoRow.data} foi rejeitado. Motivo: ${motivoRejeicao}`,
-      tipo: 'rdo_rejeitado',
-      referenciaId: id,
-      tabelaReferencia: 'rdo',
-    })
+    if (rdoRow) {
+      await db.insert(notificacoes).values({
+        usuarioId: rdoRow.criadoPorId,
+        titulo: 'RDO Rejeitado',
+        mensagem: `Seu RDO de ${rdoRow.data} foi rejeitado. Motivo: ${motivoRejeicao}`,
+        tipo: 'rdo_rejeitado',
+        referenciaId: id,
+        tabelaReferencia: 'rdo',
+      })
+    }
+    revalidatePath('/rdo')
+    revalidatePath(`/rdo/${id}`)
+    revalidatePath('/hh')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Erro ao rejeitar RDO' }
   }
-  revalidatePath('/rdo')
-  revalidatePath(`/rdo/${id}`)
-  revalidatePath('/hh')
 }
 
 // ─── Aprovação remota por token (Modo 1 — sem login) ────────────────────────
