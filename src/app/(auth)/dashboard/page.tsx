@@ -1,7 +1,7 @@
 import { db } from '@/app/db'
 import {
   obras, contratos, rdo, epis, equipamentos,
-  hhContratos, hhRegistros, rdoFuncionarios, servicos, clientes,
+  hhContratos, hhRegistros, rdoFuncionarios, servicos, clientes, obraResponsaveis,
 } from '@/app/db/schema'
 import { eq, and, sql, inArray, ne } from 'drizzle-orm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +15,20 @@ import { notFound } from 'next/navigation'
 
 // ─── Dashboard interno ────────────────────────────────────────────────────────
 
-async function getStatsInterno(empresaId: string) {
+async function getStatsInterno(empresaId: string, obraIds: string[] | null = null) {
+  // Se obraIds fornecido (encarregado), filtra apenas essas obras
+  const obraWhereBase = obraIds !== null && obraIds.length > 0
+    ? and(eq(obras.empresaId, empresaId), inArray(obras.id, obraIds))
+    : obraIds !== null && obraIds.length === 0
+      ? and(eq(obras.empresaId, empresaId), eq(obras.id, ''))  // sem obras → retorna zero
+      : eq(obras.empresaId, empresaId)
+
+  const rdoWhereBase = obraIds !== null && obraIds.length > 0
+    ? and(eq(obras.empresaId, empresaId), inArray(rdo.obraId, obraIds))
+    : obraIds !== null && obraIds.length === 0
+      ? and(eq(obras.empresaId, empresaId), eq(rdo.obraId, ''))
+      : eq(obras.empresaId, empresaId)
+
   const [
     obrasAtivas,
     contratosAtivos,
@@ -27,14 +40,14 @@ async function getStatsInterno(empresaId: string) {
   ] = await Promise.all([
     db.select({ count: sql<number>`count(*)` })
       .from(obras)
-      .where(and(eq(obras.status, 'em_andamento'), eq(obras.empresaId, empresaId))),
+      .where(and(eq(obras.status, 'em_andamento'), obraWhereBase)),
     db.select({ count: sql<number>`count(*)` })
       .from(contratos)
       .innerJoin(clientes, and(eq(contratos.clienteId, clientes.id), eq(clientes.empresaId, empresaId)))
       .where(eq(contratos.status, 'ativo')),
     db.select({ count: sql<number>`count(*)` })
       .from(rdo)
-      .innerJoin(obras, and(eq(rdo.obraId, obras.id), eq(obras.empresaId, empresaId)))
+      .innerJoin(obras, and(eq(rdo.obraId, obras.id), rdoWhereBase))
       .where(eq(rdo.status, 'pendente_aprovacao')),
     db.select({ count: sql<number>`count(*)` })
       .from(epis)
@@ -44,10 +57,12 @@ async function getStatsInterno(empresaId: string) {
       .where(and(eq(equipamentos.status, 'em_uso'), eq(equipamentos.empresaId, empresaId))),
     db.select({ total: sql<number>`coalesce(sum(${hhContratos.totalHH}), 0)` })
       .from(hhContratos)
-      .innerJoin(obras, and(eq(hhContratos.obraId, obras.id), eq(obras.empresaId, empresaId))),
-    db.select({ total: sql<number>`coalesce(sum(${hhRegistros.horasNormais} + ${hhRegistros.horasExtras}), 0)` })
-      .from(hhRegistros)
-      .innerJoin(obras, and(eq(hhRegistros.obraId, obras.id), eq(obras.empresaId, empresaId))),
+      .innerJoin(obras, and(eq(hhContratos.obraId, obras.id), obraWhereBase)),
+    db.select({ total: sql<number>`coalesce(sum(${rdoFuncionarios.horasTrabalhadas}), 0)` })
+      .from(rdoFuncionarios)
+      .innerJoin(rdo, eq(rdo.id, rdoFuncionarios.rdoId))
+      .innerJoin(obras, and(eq(rdo.obraId, obras.id), obraWhereBase))
+      .where(ne(rdo.status, 'rejeitado')),
   ])
 
   const hhContratado = Number(totalHHContratado[0]?.total ?? 0)
@@ -359,7 +374,16 @@ export default async function DashboardPage() {
   }
 
   // ── Dashboard interno (admin / engenheiro / encarregado) ───────────────────
-  const stats = await getStatsInterno(usuario.empresaId)
+  // Encarregado: restringe às obras atribuídas a ele
+  let obraIdsEncarregado: string[] | null = null
+  if (usuario.funcao === 'encarregado') {
+    const atrib = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(and(eq(obraResponsaveis.usuarioId, usuario.id), eq(obraResponsaveis.papel, 'encarregado')))
+    obraIdsEncarregado = atrib.map((a) => a.obraId)
+  }
+  const stats = await getStatsInterno(usuario.empresaId, obraIdsEncarregado)
 
   const cards = [
     {
