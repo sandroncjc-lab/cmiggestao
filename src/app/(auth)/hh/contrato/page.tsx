@@ -1,9 +1,9 @@
 import { db } from '@/app/db'
-import { obras, hhContratos, contratos } from '@/app/db/schema'
+import { obras, hhContratos, contratos, obraResponsaveis } from '@/app/db/schema'
 import { definirHHContratado } from '@/lib/actions/hh'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { redirect } from 'next/navigation'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,14 +16,26 @@ export default async function DefinirHHContratoPage() {
   const usuario = await getUsuarioAtual()
   if (!usuario || isCliente(usuario.funcao)) redirect('/hh')
 
-  // Busca apenas obras com contrato do tipo homem_hora (ou sem contrato ainda — para vincular)
-  // Inclui todas as obras da empresa; as que já têm HH definido mostram o valor atual
+  let obrasWhere
+  if (usuario.funcao === 'encarregado') {
+    const atrib = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(eq(obraResponsaveis.usuarioId, usuario.id))
+    const atribIds = atrib.map((r) => r.obraId)
+    obrasWhere = atribIds.length > 0
+      ? and(eq(obras.empresaId, usuario.empresaId), inArray(obras.id, atribIds))
+      : and(eq(obras.empresaId, usuario.empresaId), eq(obras.id, ''))
+  } else {
+    obrasWhere = eq(obras.empresaId, usuario.empresaId)
+  }
+
   const obrasList = await db
     .selectDistinct({ id: obras.id, nome: obras.nome, totalHH: hhContratos.totalHH })
     .from(obras)
     .innerJoin(contratos, and(eq(contratos.obraId, obras.id), eq(contratos.tipo, 'homem_hora')))
     .leftJoin(hhContratos, eq(hhContratos.obraId, obras.id))
-    .where(eq(obras.empresaId, usuario.empresaId))
+    .where(obrasWhere)
     .orderBy(obras.nome)
 
   async function action(formData: FormData) {

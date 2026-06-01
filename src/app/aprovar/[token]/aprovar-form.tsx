@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState, useTransition, useEffect } from 'react'
 import { aprovarRdoPorToken, rejeitarRdoPorToken } from '@/lib/actions/rdo'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,6 +20,22 @@ function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
 export function AprovarForm({ token }: { token: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [drawing, setDrawing] = useState(false)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const resize = () => {
+      const ratio = window.devicePixelRatio || 1
+      const w = canvas.offsetWidth
+      canvas.width = w * ratio
+      canvas.height = 180 * ratio
+      const ctx = canvas.getContext('2d')
+      if (ctx) { ctx.scale(ratio, ratio); ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round' }
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
   const [showRejeitar, setShowRejeitar] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState('')
@@ -137,9 +153,8 @@ export function AprovarForm({ token }: { token: string }) {
           <div className="rounded-lg border-2 border-slate-200 bg-white overflow-hidden">
             <canvas
               ref={canvasRef}
-              width={560}
-              height={180}
               className="w-full cursor-crosshair touch-none"
+              style={{ height: 180 }}
               onMouseDown={startDraw}
               onMouseMove={draw}
               onMouseUp={stopDraw}

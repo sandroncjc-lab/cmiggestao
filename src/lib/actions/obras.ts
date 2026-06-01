@@ -1,10 +1,10 @@
 'use server'
 
 import { db } from '@/app/db'
-import { obras, obrasEnderecos, usuarios, clientes } from '@/app/db/schema'
+import { obras, obrasEnderecos, usuarios, clientes, obraResponsaveis } from '@/app/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
+import { getEmpresaIdOuErro, getUsuarioAtual } from '@/lib/server/getUsuario'
 import { verificarOwnershipObra } from '@/lib/auth/ownership'
 import { clerkClient } from '@clerk/nextjs/server'
 
@@ -72,10 +72,13 @@ export async function criarObra(
   formData: FormData,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const empresaId = await getEmpresaIdOuErro()
+    const usuario = await getUsuarioAtual()
+    if (!usuario) return { success: false, error: 'Usuário não autenticado' }
+    const { empresaId } = usuario
     const obraId = crypto.randomUUID()
     const nome = formData.get('nome') as string
     const clienteId = formData.get('clienteId') as string
+    const aprovadorClienteId = (formData.get('aprovadorClienteId') as string) || null
 
     if (!nome) return { success: false, error: 'Campo Nome é obrigatório' }
     if (!clienteId) return { success: false, error: 'Campo Cliente é obrigatório' }
@@ -88,10 +91,18 @@ export async function criarObra(
       dataInicio: (formData.get('dataInicio') as string) || null,
       dataFim: (formData.get('dataFim') as string) || null,
       clienteId,
-      aprovadorClienteId: (formData.get('aprovadorClienteId') as string) || null,
+      aprovadorClienteId,
       responsavelInternoId: (formData.get('responsavelInternoId') as string) || null,
       empresaId,
     })
+
+    // Auto-atribuição: encarregado que cria vira responsável; aprovador selecionado também
+    if (usuario.funcao === 'encarregado') {
+      await db.insert(obraResponsaveis).values({ obraId, usuarioId: usuario.id, papel: 'encarregado' })
+    }
+    if (aprovadorClienteId) {
+      await db.insert(obraResponsaveis).values({ obraId, usuarioId: aprovadorClienteId, papel: 'aprovador' })
+    }
 
     const logradouro = formData.get('logradouro') as string
     if (logradouro) {

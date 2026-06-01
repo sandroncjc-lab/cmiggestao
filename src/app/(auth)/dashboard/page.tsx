@@ -44,7 +44,13 @@ async function getStatsInterno(empresaId: string, obraIds: string[] | null = nul
     db.select({ count: sql<number>`count(*)` })
       .from(contratos)
       .innerJoin(clientes, and(eq(contratos.clienteId, clientes.id), eq(clientes.empresaId, empresaId)))
-      .where(eq(contratos.status, 'ativo')),
+      .where(
+        obraIds !== null && obraIds.length > 0
+          ? and(eq(contratos.status, 'ativo'), inArray(contratos.obraId, obraIds))
+          : obraIds !== null && obraIds.length === 0
+            ? sql`false`
+            : eq(contratos.status, 'ativo')
+      ),
     db.select({ count: sql<number>`count(*)` })
       .from(rdo)
       .innerJoin(obras, and(eq(rdo.obraId, obras.id), rdoWhereBase))

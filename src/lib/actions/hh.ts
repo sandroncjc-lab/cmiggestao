@@ -2,7 +2,7 @@
 'use server'
 
 import { db } from '@/app/db'
-import { hhContratos, hhRegistros, notificacoes, obras, rdo, rdoFuncionarios } from '@/app/db/schema'
+import { hhContratos, hhRegistros, notificacoes, obras, obraResponsaveis, rdo, rdoFuncionarios } from '@/app/db/schema'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
@@ -20,6 +20,19 @@ export async function listarHHDados() {
       .from(hhContratos)
       .innerJoin(obras, eq(obras.id, hhContratos.obraId))
       .where(eq(obras.clienteId, usuario.clienteId))
+      .orderBy(obras.nome)
+  } else if (usuario.funcao === 'encarregado') {
+    const atrib = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(eq(obraResponsaveis.usuarioId, usuario.id))
+    const atribIds = atrib.map((r) => r.obraId)
+    if (atribIds.length === 0) return { obrasList: [], consumoMap: {} as Record<string, number>, rdosPorObra: {} as Record<string, never[]>, registrosPorObra: {} as Record<string, never[]> }
+    obrasQuery = db
+      .select({ id: obras.id, nome: obras.nome, totalHH: hhContratos.totalHH, hhId: hhContratos.id })
+      .from(hhContratos)
+      .innerJoin(obras, eq(obras.id, hhContratos.obraId))
+      .where(and(eq(obras.empresaId, usuario.empresaId), inArray(obras.id, atribIds)))
       .orderBy(obras.nome)
   } else {
     obrasQuery = db

@@ -1,7 +1,7 @@
 import { db } from '@/app/db'
-import { contratos, clientes, obras } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
-import { getEmpresaIdOuErro } from '@/lib/server/getUsuario'
+import { contratos, clientes, obras, obraResponsaveis } from '@/app/db/schema'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { getUsuarioOuErro, isCliente } from '@/lib/server/getUsuario'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,8 +23,39 @@ const tipoConfig: Record<string, { label: string; variant: string }> = {
 }
 
 export default async function ContratosPage() {
-  // Isolamento: filtra por empresa do usuário autenticado
-  const empresaId = await getEmpresaIdOuErro()
+  const usuario = await getUsuarioOuErro()
+  const { empresaId } = usuario
+  const clienteVendo = isCliente(usuario.funcao)
+  const encarregadoVendo = usuario.funcao === 'encarregado'
+
+  const empresaFilter = eq(clientes.empresaId, empresaId)
+
+  // Para papéis restritos: buscar obras atribuídas via obraResponsaveis
+  let obraIdsAtribuidas: string[] | null = null
+  if (encarregadoVendo || clienteVendo) {
+    const atrib = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(eq(obraResponsaveis.usuarioId, usuario.id))
+    obraIdsAtribuidas = atrib.map((r) => r.obraId)
+  }
+
+  let whereContratos
+  if (clienteVendo) {
+    // Filtro por clienteId (legado) + obraResponsaveis (novo)
+    const filters = []
+    if (usuario.clienteId) filters.push(eq(contratos.clienteId, usuario.clienteId))
+    if (obraIdsAtribuidas && obraIdsAtribuidas.length > 0) filters.push(inArray(contratos.obraId, obraIdsAtribuidas))
+    whereContratos = filters.length > 0
+      ? and(empresaFilter, sql`(${filters.reduce((acc, f) => sql`${acc} OR ${f}`)})`)
+      : sql`false`
+  } else if (encarregadoVendo) {
+    whereContratos = obraIdsAtribuidas && obraIdsAtribuidas.length > 0
+      ? and(empresaFilter, inArray(contratos.obraId, obraIdsAtribuidas))
+      : sql`false`
+  } else {
+    whereContratos = empresaFilter
+  }
 
   const rows = await db
     .select({
@@ -42,7 +73,7 @@ export default async function ContratosPage() {
     .from(contratos)
     .innerJoin(clientes, eq(contratos.clienteId, clientes.id))
     .leftJoin(obras, eq(contratos.obraId, obras.id))
-    .where(eq(clientes.empresaId, empresaId))
+    .where(whereContratos)
     .orderBy(contratos.criadoEm)
 
   return (
@@ -52,9 +83,11 @@ export default async function ContratosPage() {
           <h2 className="text-2xl font-bold">Contratos</h2>
           <p className="text-muted-foreground">{rows.length} contrato{rows.length !== 1 ? 's' : ''}</p>
         </div>
-        <Button asChild>
-          <Link href="/contratos/novo"><Plus className="h-4 w-4 mr-2" />Novo Contrato</Link>
-        </Button>
+        {!clienteVendo && (
+          <Button asChild>
+            <Link href="/contratos/novo"><Plus className="h-4 w-4 mr-2" />Novo Contrato</Link>
+          </Button>
+        )}
       </div>
 
       <Card>

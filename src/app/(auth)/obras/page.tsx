@@ -1,6 +1,6 @@
 import { db } from '@/app/db'
-import { obras, clientes, usuarios } from '@/app/db/schema'
-import { eq, ilike, sql } from 'drizzle-orm'
+import { obras, clientes, usuarios, obraResponsaveis } from '@/app/db/schema'
+import { eq, ilike, sql, inArray, and } from 'drizzle-orm'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,7 +29,40 @@ export default async function ObrasPage({ searchParams }: Props) {
   const offset = (currentPage - 1) * PER_PAGE
 
   const usuario = await getUsuarioAtual()
-  const clienteVendo = usuario ? isCliente(usuario.funcao) : false
+  if (!usuario) return null
+
+  const clienteVendo = isCliente(usuario.funcao)
+  const encarregadoVendo = usuario.funcao === 'encarregado'
+
+  // Para papéis restritos: buscar obras atribuídas via obraResponsaveis
+  let obraIdsAtribuidas: string[] | null = null
+  if (encarregadoVendo || clienteVendo) {
+    const atrib = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(eq(obraResponsaveis.usuarioId, usuario.id))
+    obraIdsAtribuidas = atrib.map((r) => r.obraId)
+  }
+
+  // Montar filtro: base sempre filtra por empresa
+  const empresaFilter = eq(obras.empresaId, usuario.empresaId)
+
+  let whereClause
+  if (clienteVendo) {
+    // Filtro por clienteId (legado) + obraResponsaveis (novo)
+    const filters = []
+    if (usuario.clienteId) filters.push(eq(obras.clienteId, usuario.clienteId))
+    if (obraIdsAtribuidas && obraIdsAtribuidas.length > 0) filters.push(inArray(obras.id, obraIdsAtribuidas))
+    whereClause = filters.length > 0
+      ? and(empresaFilter, sql`(${filters.reduce((acc, f) => sql`${acc} OR ${f}`)})`)
+      : sql`false`
+  } else if (encarregadoVendo) {
+    whereClause = obraIdsAtribuidas && obraIdsAtribuidas.length > 0
+      ? and(empresaFilter, inArray(obras.id, obraIdsAtribuidas))
+      : sql`false`
+  } else {
+    whereClause = empresaFilter
+  }
 
   const baseQuery = db
     .select({
@@ -46,15 +79,10 @@ export default async function ObrasPage({ searchParams }: Props) {
     .offset(offset)
     .orderBy(obras.criadoEm)
 
-  const rows = clienteVendo && usuario?.clienteId
-    ? await baseQuery.where(eq(obras.clienteId, usuario.clienteId))
-    : await baseQuery
+  const rows = await baseQuery.where(whereClause)
 
-  const countQuery = clienteVendo && usuario?.clienteId
-    ? db.select({ total: sql<number>`count(*)` }).from(obras).where(eq(obras.clienteId, usuario.clienteId))
-    : db.select({ total: sql<number>`count(*)` }).from(obras)
-
-  const [{ total }] = await countQuery
+  const countBase = db.select({ total: sql<number>`count(*)` }).from(obras)
+  const [{ total }] = await countBase.where(whereClause)
   const totalPages = Math.ceil(Number(total) / PER_PAGE)
 
   return (

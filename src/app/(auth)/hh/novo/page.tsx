@@ -1,9 +1,9 @@
 import { db } from '@/app/db'
-import { obras, contratos } from '@/app/db/schema'
+import { obras, contratos, obraResponsaveis } from '@/app/db/schema'
 import { registrarHH } from '@/lib/actions/hh'
 import { getUsuarioAtual, isCliente } from '@/lib/server/getUsuario'
 import { redirect } from 'next/navigation'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,11 +16,25 @@ export default async function NovoHHPage() {
   const usuario = await getUsuarioAtual()
   if (!usuario || isCliente(usuario.funcao)) redirect('/hh')
 
+  let obrasWhere
+  if (usuario.funcao === 'encarregado') {
+    const atrib = await db
+      .select({ obraId: obraResponsaveis.obraId })
+      .from(obraResponsaveis)
+      .where(eq(obraResponsaveis.usuarioId, usuario.id))
+    const atribIds = atrib.map((r) => r.obraId)
+    obrasWhere = atribIds.length > 0
+      ? and(eq(obras.empresaId, usuario.empresaId), inArray(obras.id, atribIds))
+      : and(eq(obras.empresaId, usuario.empresaId), eq(obras.id, ''))
+  } else {
+    obrasWhere = eq(obras.empresaId, usuario.empresaId)
+  }
+
   const obrasList = await db
     .selectDistinct({ id: obras.id, nome: obras.nome })
     .from(obras)
     .innerJoin(contratos, and(eq(contratos.obraId, obras.id), eq(contratos.tipo, 'homem_hora')))
-    .where(eq(obras.empresaId, usuario.empresaId))
+    .where(obrasWhere)
     .orderBy(obras.nome)
 
   async function action(formData: FormData) {
