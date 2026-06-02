@@ -33,36 +33,72 @@ export default async function ObrasPage({ searchParams }: Props) {
 
   const clienteVendo = isCliente(usuario.funcao)
   const encarregadoVendo = usuario.funcao === 'encarregado'
+  const empresaFilter = eq(obras.empresaId, usuario.empresaId)
 
-  // Para papéis restritos: buscar obras atribuídas via obraResponsaveis
-  let obraIdsAtribuidas: string[] | null = null
+  // Para papéis restritos: calcular IDs de obras visíveis
+  let obraIdsVisiveis: string[] | null = null
   if (encarregadoVendo || clienteVendo) {
     const atrib = await db
       .select({ obraId: obraResponsaveis.obraId })
       .from(obraResponsaveis)
       .where(eq(obraResponsaveis.usuarioId, usuario.id))
-    obraIdsAtribuidas = atrib.map((r) => r.obraId)
+    const idsResponsavel = atrib.map((r) => r.obraId)
+
+    if (clienteVendo && usuario.clienteId) {
+      // Obras do cliente via clienteId legado
+      const obrasCliente = await db
+        .select({ id: obras.id })
+        .from(obras)
+        .where(and(eq(obras.empresaId, usuario.empresaId), eq(obras.clienteId, usuario.clienteId)))
+      const idsCliente = obrasCliente.map((o) => o.id)
+      obraIdsVisiveis = [...new Set([...idsCliente, ...idsResponsavel])]
+    } else {
+      obraIdsVisiveis = idsResponsavel
+    }
   }
 
-  // Montar filtro: base sempre filtra por empresa
-  const empresaFilter = eq(obras.empresaId, usuario.empresaId)
-
-  let whereClause
-  if (clienteVendo) {
-    // Filtro por clienteId (legado) + obraResponsaveis (novo)
-    const filters = []
-    if (usuario.clienteId) filters.push(eq(obras.clienteId, usuario.clienteId))
-    if (obraIdsAtribuidas && obraIdsAtribuidas.length > 0) filters.push(inArray(obras.id, obraIdsAtribuidas))
-    whereClause = filters.length > 0
-      ? and(empresaFilter, sql`(${filters.reduce((acc, f) => sql`${acc} OR ${f}`)})`)
-      : sql`false`
-  } else if (encarregadoVendo) {
-    whereClause = obraIdsAtribuidas && obraIdsAtribuidas.length > 0
-      ? and(empresaFilter, inArray(obras.id, obraIdsAtribuidas))
-      : sql`false`
-  } else {
-    whereClause = empresaFilter
+  // Retorno antecipado para papéis restritos sem obras atribuídas
+  if (obraIdsVisiveis !== null && obraIdsVisiveis.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Obras</h2>
+            <p className="text-muted-foreground">0 obras cadastradas</p>
+          </div>
+          {!clienteVendo && (
+            <Button asChild>
+              <Link href="/obras/nova"><Plus className="h-4 w-4 mr-2" />Nova Obra</Link>
+            </Button>
+          )}
+        </div>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Obra</TableHead><TableHead>Cliente</TableHead>
+                  <TableHead>Status</TableHead><TableHead>Início</TableHead>
+                  <TableHead>Previsão Fim</TableHead><TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                    Nenhuma obra atribuída a você
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
+
+  const whereClause = obraIdsVisiveis !== null
+    ? and(empresaFilter, inArray(obras.id, obraIdsVisiveis))
+    : empresaFilter
 
   const baseQuery = db
     .select({

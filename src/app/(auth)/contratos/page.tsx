@@ -27,35 +27,72 @@ export default async function ContratosPage() {
   const { empresaId } = usuario
   const clienteVendo = isCliente(usuario.funcao)
   const encarregadoVendo = usuario.funcao === 'encarregado'
-
   const empresaFilter = eq(clientes.empresaId, empresaId)
 
-  // Para papéis restritos: buscar obras atribuídas via obraResponsaveis
-  let obraIdsAtribuidas: string[] | null = null
+  // Para papéis restritos: calcular IDs de obras visíveis
+  let obraIdsVisiveis: string[] | null = null
   if (encarregadoVendo || clienteVendo) {
     const atrib = await db
       .select({ obraId: obraResponsaveis.obraId })
       .from(obraResponsaveis)
       .where(eq(obraResponsaveis.usuarioId, usuario.id))
-    obraIdsAtribuidas = atrib.map((r) => r.obraId)
+    obraIdsVisiveis = atrib.map((r) => r.obraId)
   }
 
-  let whereContratos
-  if (clienteVendo) {
-    // Filtro por clienteId (legado) + obraResponsaveis (novo)
-    const filters = []
-    if (usuario.clienteId) filters.push(eq(contratos.clienteId, usuario.clienteId))
-    if (obraIdsAtribuidas && obraIdsAtribuidas.length > 0) filters.push(inArray(contratos.obraId, obraIdsAtribuidas))
-    whereContratos = filters.length > 0
-      ? and(empresaFilter, sql`(${filters.reduce((acc, f) => sql`${acc} OR ${f}`)})`)
-      : sql`false`
-  } else if (encarregadoVendo) {
-    whereContratos = obraIdsAtribuidas && obraIdsAtribuidas.length > 0
-      ? and(empresaFilter, inArray(contratos.obraId, obraIdsAtribuidas))
-      : sql`false`
-  } else {
-    whereContratos = empresaFilter
+  // Contratos visíveis para cliente: pelo clienteId legado + obras atribuídas
+  let contratosIdsCliente: string[] | null = null
+  if (clienteVendo && usuario.clienteId) {
+    const cc = await db
+      .select({ id: contratos.id })
+      .from(contratos)
+      .innerJoin(clientes, and(eq(contratos.clienteId, clientes.id), eq(clientes.empresaId, empresaId)))
+      .where(eq(contratos.clienteId, usuario.clienteId))
+    contratosIdsCliente = cc.map((c) => c.id)
   }
+
+  // Montar lista final de IDs visíveis para restritos
+  let contratosIdsFinal: string[] | null = null
+  if (clienteVendo || encarregadoVendo) {
+    const idsSet = new Set<string>()
+    if (contratosIdsCliente) contratosIdsCliente.forEach((id) => idsSet.add(id))
+    if (obraIdsVisiveis && obraIdsVisiveis.length > 0) {
+      const cc2 = await db
+        .select({ id: contratos.id })
+        .from(contratos)
+        .innerJoin(clientes, and(eq(contratos.clienteId, clientes.id), eq(clientes.empresaId, empresaId)))
+        .where(inArray(contratos.obraId, obraIdsVisiveis))
+      cc2.forEach((c) => idsSet.add(c.id))
+    }
+    contratosIdsFinal = [...idsSet]
+  }
+
+  // Retorno antecipado para papéis restritos sem contratos
+  if (contratosIdsFinal !== null && contratosIdsFinal.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Contratos</h2>
+            <p className="text-muted-foreground">0 contratos</p>
+          </div>
+          {!clienteVendo && (
+            <Button asChild>
+              <Link href="/contratos/novo"><Plus className="h-4 w-4 mr-2" />Novo Contrato</Link>
+            </Button>
+          )}
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Nenhum contrato atribuído a você
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const whereContratos = contratosIdsFinal !== null
+    ? and(empresaFilter, inArray(contratos.id, contratosIdsFinal))
+    : empresaFilter
 
   const rows = await db
     .select({

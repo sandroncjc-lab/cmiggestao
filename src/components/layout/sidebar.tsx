@@ -24,7 +24,7 @@ const allNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
   { href: '/obras', label: 'Obras', icon: HardHat, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
   { href: '/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'engenheiro'] },
-  { href: '/contratos', label: 'Contratos', icon: FileText, roles: ['admin', 'engenheiro'] },
+  { href: '/contratos', label: 'Contratos', icon: FileText, roles: ['admin', 'engenheiro', 'encarregado'] },
   { href: '/rdo', label: 'RDO', icon: ClipboardList, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
   { href: '/hh', label: 'Homem Hora', icon: Timer, roles: ['admin', 'engenheiro', 'encarregado', 'aprovador_cliente'] },
   { href: '/equipamentos', label: 'Equipamentos', icon: Wrench, roles: ['admin', 'engenheiro', 'encarregado'] },
