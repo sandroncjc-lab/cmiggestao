@@ -1,6 +1,6 @@
 import { db } from '@/app/db'
 import { rdo, rdoAtividades, rdoFuncionarios, rdoFotos, rdoServicos, servicos, obras, clientes, empresas, usuarios, obraResponsaveis, contratos } from '@/app/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -49,7 +49,7 @@ async function carregarRdo(id: string, usuario: NonNullable<Awaited<ReturnType<t
       const [row] = await db
         .select()
         .from(rdo)
-        .where(eq(rdo.id, id))
+        .where(and(eq(rdo.id, id), inArray(rdo.obraId, obraIds)))
         .limit(1)
       if (row) return row
     }

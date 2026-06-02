@@ -83,6 +83,33 @@ export async function criarObra(
     if (!nome) return { success: false, error: 'Campo Nome é obrigatório' }
     if (!clienteId) return { success: false, error: 'Campo Cliente é obrigatório' }
 
+    // Garante que clienteId pertence à empresa do usuário
+    const [clienteCheck] = await db
+      .select({ id: clientes.id })
+      .from(clientes)
+      .where(and(eq(clientes.id, clienteId), eq(clientes.empresaId, empresaId)))
+      .limit(1)
+    if (!clienteCheck) return { success: false, error: 'Cliente não pertence à sua empresa' }
+
+    // Garante que aprovadorClienteId pertence à empresa (se informado)
+    const responsavelInternoId = (formData.get('responsavelInternoId') as string) || null
+    if (aprovadorClienteId) {
+      const [apCheck] = await db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(and(eq(usuarios.id, aprovadorClienteId), eq(usuarios.empresaId, empresaId)))
+        .limit(1)
+      if (!apCheck) return { success: false, error: 'Aprovador não pertence à sua empresa' }
+    }
+    if (responsavelInternoId) {
+      const [respCheck] = await db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(and(eq(usuarios.id, responsavelInternoId), eq(usuarios.empresaId, empresaId)))
+        .limit(1)
+      if (!respCheck) return { success: false, error: 'Responsável interno não pertence à sua empresa' }
+    }
+
     await db.insert(obras).values({
       id: obraId,
       nome,
@@ -92,7 +119,7 @@ export async function criarObra(
       dataFim: (formData.get('dataFim') as string) || null,
       clienteId,
       aprovadorClienteId,
-      responsavelInternoId: (formData.get('responsavelInternoId') as string) || null,
+      responsavelInternoId,
       empresaId,
     })
 

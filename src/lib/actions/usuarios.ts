@@ -2,7 +2,7 @@
 
 import { db } from '@/app/db'
 import { usuarios, empresas } from '@/app/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getEmpresaIdOuErro, getUsuarioOuErro } from '@/lib/server/getUsuario'
 import { clerkClient } from '@clerk/nextjs/server'
@@ -79,7 +79,7 @@ export async function carregarUsuarioParaEdicao(id: string) {
       empresaId: usuarios.empresaId,
     })
     .from(usuarios)
-    .where(eq(usuarios.id, id))
+    .where(and(eq(usuarios.id, id), eq(usuarios.empresaId, admin.empresaId)))
     .limit(1)
 
   if (!usuario) return null
