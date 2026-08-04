@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell, Sun, Moon, X } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
@@ -28,19 +28,10 @@ const tipoLink: Record<string, string> = {
 }
 
 export function Header({ title }: { title?: string }) {
-  const [dark, setDark] = useState(false)
   const [notifs, setNotifs] = useState<Notificacao[]>([])
   const [showNotifs, setShowNotifs] = useState(false)
   const [, startTransition] = useTransition()
   const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const stored = document.cookie.match(/theme=([^;]+)/)?.[1]
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const isDark = stored ? stored === 'dark' : prefersDark
-    setDark(isDark)
-    document.documentElement.classList.toggle('dark', isDark)
-  }, [])
 
   useEffect(() => {
     listarNotificacoes().then(setNotifs)
@@ -55,13 +46,6 @@ export function Header({ title }: { title?: string }) {
     if (showNotifs) document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showNotifs])
-
-  function toggleTheme() {
-    const next = !dark
-    setDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    document.cookie = `theme=${next ? 'dark' : 'light'};path=/;max-age=31536000`
-  }
 
   const naoLidas = notifs.filter((n) => !n.lida).length
 
@@ -89,10 +73,6 @@ export function Header({ title }: { title?: string }) {
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-6">
       <h1 className="text-lg font-semibold text-foreground">{title}</h1>
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">
-          {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </Button>
-
         {/* Sino de notificações */}
         <div className="relative" ref={dropdownRef}>
           <Button
@@ -132,7 +112,7 @@ export function Header({ title }: { title?: string }) {
                 {notifs.map((n) => {
                   const href = getHref(n)
                   const content = (
-                    <div className={`px-4 py-3 ${!n.lida ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}>
+                    <div className={`px-4 py-3 ${!n.lida ? 'bg-blue-50/50' : ''}`}>
                       <div className="flex items-start justify-between gap-2">
                         <span className="text-sm font-medium leading-snug">{n.titulo}</span>
                         {!n.lida && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
